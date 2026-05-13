@@ -9,4 +9,4 @@ COPY ./src ./src
 
 ENV PYTHONPATH=/app
 
-CMD ["celery", "-A", "src.tasks", "worker", "--loglevel=info", "-Q", "recognizer"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
