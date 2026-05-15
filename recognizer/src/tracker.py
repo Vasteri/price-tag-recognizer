@@ -18,41 +18,50 @@ output_dir/
 │   └── metadata.json
 ├── track_2/
 │   └── ...
-
-TODO: tqdm в консоль выводится дважды, некритично
 """
 
 import os
 import cv2
 import json
+from time import time
 from huggingface_hub import hf_hub_download
 from ultralytics import YOLO
-from tqdm import tqdm
 
-def setup_model(repo_id, filename):
-    model_path = hf_hub_download(repo_id=repo_id, filename=filename)
-    return YOLO(model_path)
 
-def process_tracking(repo_id, repo_filename, source_video, output_dir, frame_interval):
-    model = setup_model(repo_id, repo_filename)
+def process_tracking(
+    # обязательные параметры
+    source_video, output_path, frame_interval,
+    # либо модель с Hugging Face
+    repo_id=None, repo_filename=None,
+    # либо локальная модель
+    model_path=None,
+    ):
+    if model_dir is None:
+        model_dir = hf_hub_download(repo_id=repo_id, filename=repo_filename)
+
+    model = YOLO(model_dir)
     cap = cv2.VideoCapture(source_video)
 
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
 
-    pbar = tqdm(total=total_frames+1, desc="Обработка видео")
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
 
     frame_idx = -1
     meta_data = {}
     known_tracks = []
+
+    last_time = None
+
     while cap.isOpened():
         frame_idx += 1
-        pbar.update(1)
-        
+        # каждые 0.5 секунд отдаем статус
+        if last_time is None or time() - last_time > 0.5:
+            last_time = time()
+            yield frame_idx, total_frames
+
         timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
         success, frame = cap.read()
         if not success:
@@ -68,21 +77,21 @@ def process_tracking(repo_id, repo_filename, source_video, output_dir, frame_int
             track_ids = results[0].boxes.id.int().cpu().numpy()
 
             for box, track_id in zip(boxes, track_ids):
-                track_dir = os.path.join(output_dir, f"track_{track_id}")
-                image_dir = os.path.join(track_dir, f"images")
+                track_path = os.path.join(output_path, f"track_{track_id}")
+                image_path = os.path.join(track_path, f"images")
 
                 if track_id not in known_tracks:
                     known_tracks.append(track_id)
-                    os.makedirs(track_dir, exist_ok=True)
-                    os.makedirs(image_dir, exist_ok=True)
+                    os.makedirs(track_path, exist_ok=True)
+                    os.makedirs(image_path, exist_ok=True)
 
                 x1, y1, x2, y2 = map(int, box)
                 crop = frame[y1:y2, x1:x2]
-                
+
                 img_name = f"frame_{frame_idx:04d}.jpg"
-                img_path = os.path.join(image_dir, img_name)
+                img_path = os.path.join(image_path, img_name)
                 cv2.imwrite(img_path, crop)
-                
+
                 if meta_data.get(track_id, None) is None:
                     meta_data[track_id] = []
 
@@ -93,24 +102,35 @@ def process_tracking(repo_id, repo_filename, source_video, output_dir, frame_int
                     "image": img_name
                 })
 
+    # После всех итераций - отдельно вернуть этот результат
     cap.release()
+    yield total_frames-1, total_frames
 
-    print(f'\nЗаписываются метаданные...')
+    # Запись накопленных метаданных для каждого трека: frame number, timestamp, bbox, image_name
     for key, value in meta_data.items():
-        track_dir = os.path.join(output_dir, f"track_{key}")
-        meta_path = os.path.join(track_dir, "metadata.json")
+        track_path = os.path.join(output_path, f"track_{key}")
+        meta_path = os.path.join(track_path, "metadata.json")
         with open(meta_path, 'w') as f:
             f.write(json.dumps(value, indent=4))
 
+    # В конце вернуть 100% прогресс
+    yield total_frames, total_frames
+
 
 def main(
+    source_path: str,
+    output_path: str,
+    frame_interval: int = 2,
     repo_id: str = "openfoodfacts/price-tag-detection",
     repo_filename: str = "weights/best.pt",
-    source_video: str,
-    output_dir: str,
-    frame_interval: int = 2,
 ):
-    process_tracking(repo_id, repo_filename, source_video, output_dir, frame_interval)
+    process_tracking(
+        source_video=source_path,
+        output_path=output_path,
+        frame_interval=frame_interval,
+        repo_id=repo_id,
+        filename=repo_filename,
+    )
     print('Успешно')
 
 
