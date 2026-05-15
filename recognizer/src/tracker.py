@@ -36,10 +36,10 @@ def process_tracking(
     # либо локальная модель
     model_path=None,
     ):
-    if model_dir is None:
-        model_dir = hf_hub_download(repo_id=repo_id, filename=repo_filename)
+    if model_path is None:
+        model_path = hf_hub_download(repo_id=repo_id, filename=repo_filename)
 
-    model = YOLO(model_dir)
+    model = YOLO(model_path)
     cap = cv2.VideoCapture(source_path)
 
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -125,7 +125,7 @@ def main(
     repo_filename: str = "weights/best.pt",
 ):
     process_tracking(
-        source_video=source_path,
+        source_path=source_path,
         output_path=output_path,
         frame_interval=frame_interval,
         repo_id=repo_id,
