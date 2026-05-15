@@ -30,7 +30,7 @@ from ultralytics import YOLO
 
 def process_tracking(
     # обязательные параметры
-    source_video, output_path, frame_interval,
+    source_path, output_path, frame_interval,
     # либо модель с Hugging Face
     repo_id=None, repo_filename=None,
     # либо локальная модель
@@ -40,7 +40,7 @@ def process_tracking(
         model_dir = hf_hub_download(repo_id=repo_id, filename=repo_filename)
 
     model = YOLO(model_dir)
-    cap = cv2.VideoCapture(source_video)
+    cap = cv2.VideoCapture(source_path)
 
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
