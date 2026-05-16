@@ -29,6 +29,13 @@ services:
       - shared_volume:/shared
     environment:
       - REDIS_URL=redis://redis:6379/0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     depends_on:
       - redis
 
