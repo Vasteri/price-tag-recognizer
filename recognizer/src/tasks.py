@@ -8,12 +8,11 @@ from .celery_app import celery_app
 from .tracker import process_tracking
 
 @celery_app.task(bind=True, name='recognizer.tasks.process_video')
-def process_video(self, video_path: str):
-    video_path = Path(video_path)
+def process_video(self, video_path_str: str):
+    video_path = Path(video_path_str)
     self.update_state(state='PROCESSING', meta={'progress': 0})
 
     # пайплайн
-    results = [video_path.split('/')[-1].split('.')[0]]
 
     # 1. Отслеживание треков :50% прогресс-бара
 
@@ -24,7 +23,7 @@ def process_video(self, video_path: str):
 
     for frames_processed, total_frames in process_tracking(
         source_path=video_path,
-        output_dir=tracks_path,
+        output_path=tracks_path,
         # пока хардкод + модель с hugging face хорошо себя показывает
         frame_interval=2,
         repo_id="openfoodfacts/price-tag-detection",
@@ -35,6 +34,7 @@ def process_video(self, video_path: str):
     # 2.
     ...
 
-    csv_path = video_path.replace('.mp4', '.csv').replace(UPLOAD_DIR, RESULT_DIR)
+    results = [video_path_str.split('/')[-1].split('.')[0]]
+    csv_path = video_path_str.replace('.mp4', '.csv').replace(UPLOAD_DIR, RESULT_DIR)
     pd.DataFrame(results).to_csv(csv_path, index=False)
     return {'csv_path': csv_path}
