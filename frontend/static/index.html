@@ -1,9 +1,58 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-  </head>
-  <body>
-    Привет Мир!
-  </body>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Распознавание ценников на видео</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <h1>📹 Распознавание ценников</h1>
+            <p>Загрузите видео до 500 МБ, и система выделит ценники, сформирует CSV‑отчёт</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Блок загрузки -->
+            <div class="upload-card" id="uploadCard">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-icon">📁</div>
+                    <div class="drop-zone-text">Перетащите видео сюда или <span class="browse-link">выберите файл</span></div>
+                    <input type="file" id="fileInput" accept="video/mp4,video/quicktime,video/x-msvideo" style="display: none;">
+                    <div class="file-info" id="fileInfo"></div>
+                </div>
+                <button class="upload-btn" id="uploadBtn" disabled>Загрузить видео</button>
+            </div>
+
+            <!-- Блок прогресса и результата -->
+            <div class="progress-card hidden" id="progressCard">
+                <div class="task-id-container">
+                    <span class="task-label">ID задачи:</span>
+                    <span class="task-id" id="taskId"></span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-status" id="progressStatus">Ожидание начала...</div>
+                <div class="result-actions" id="resultActions">
+                    <button class="download-btn hidden" id="downloadBtn">📥 Скачать CSV</button>
+                    <button class="reset-btn" id="resetBtn">➕ Загрузить другое видео</button>
+                </div>
+            </div>
+
+            <!-- Сообщения об ошибках -->
+            <div class="error-message hidden" id="errorMessage">
+                <span>⚠️</span> <span id="errorText"></span>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Поддерживаются форматы: MP4, MOV, AVI. Максимальный размер: 500 МБ.</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
 </html>
