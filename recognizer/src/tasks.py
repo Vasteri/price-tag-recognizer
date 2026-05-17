@@ -1,16 +1,18 @@
-import pandas as pd
+import json
 from pathlib import Path
-from time import sleep
 
-from .config import UPLOAD_DIR, RESULT_DIR
+import pandas as pd
+
 from .celery_app import celery_app
-
+from .config import RESULT_DIR, UPLOAD_DIR
+from .recognizer import recognize_tracks
 from .tracker import process_tracking
 
-@celery_app.task(bind=True, name='recognizer.tasks.process_video')
+
+@celery_app.task(bind=True, name="recognizer.tasks.process_video")
 def process_video(self, video_path_str: str):
     video_path = Path(video_path_str)
-    self.update_state(state='PROCESSING', meta={'progress': 0})
+    self.update_state(state="PROCESSING", meta={"progress": 0})
 
     # пайплайн
 
@@ -18,7 +20,7 @@ def process_video(self, video_path_str: str):
 
     # dir/vid.mp4 -> dir/vid.mp4.tracks/
     # можно заменить на то как удобней будет
-    tracks_path = video_path.parent / (video_path.name + '.tracks')
+    tracks_path = video_path.parent / (video_path.name + ".tracks")
     tracks_path.mkdir(parents=True, exist_ok=True)
 
     for frames_processed, total_frames in process_tracking(
@@ -29,12 +31,33 @@ def process_video(self, video_path_str: str):
         repo_id="openfoodfacts/price-tag-detection",
         repo_filename="weights/best.pt",
     ):
-        self.update_state(state='PROCESSING', meta={'progress': 50 * frames_processed / total_frames})
+        self.update_state(
+            state="PROCESSING", meta={"progress": 50 * frames_processed / total_frames}
+        )
 
     # 2.
     ...
 
-    results = [video_path_str.split('/')[-1].split('.')[0]]
-    csv_path = video_path_str.replace('.mp4', '.csv').replace(UPLOAD_DIR, RESULT_DIR)
+    results = [video_path_str.split("/")[-1].split(".")[0]]
+    csv_path = video_path_str.replace(".mp4", ".csv").replace(UPLOAD_DIR, RESULT_DIR)
     pd.DataFrame(results).to_csv(csv_path, index=False)
-    return {'csv_path': csv_path}
+
+    recognize_price_tags.delay(str(tracks_path), video_path_str)
+    return {"csv_path": csv_path}
+
+
+@celery_app.task(bind=True, name="recognizer.tasks.recognize_price_tags")
+def recognize_price_tags(self, tracks_path_str: str, video_path_str: str):
+    tracks_path = Path(tracks_path_str)
+
+    self.update_state(state="PROCESSING", meta={"progress": 0})
+    results = recognize_tracks(tracks_path)
+    self.update_state(state="PROCESSING", meta={"progress": 100})
+
+    # сохраняем сырые предсказания — мёрдж потом, когда будет понятна логика
+    json_path = video_path_str.replace(".mp4", ".predictions.json").replace(
+        UPLOAD_DIR, RESULT_DIR
+    )
+    Path(json_path).write_text(json.dumps(results, ensure_ascii=False, indent=2))
+
+    return {"json_path": json_path}
