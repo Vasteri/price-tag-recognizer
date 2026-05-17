@@ -2,6 +2,7 @@
 
 import base64
 import json
+import random
 from pathlib import Path
 
 from openai import OpenAI
@@ -69,9 +70,8 @@ def _sample_crops(track_dir: Path, n: int) -> list[Path]:
     images = sorted((track_dir / "images").glob("*.jpg"))
     if not images:
         return []
-    count = min(n, len(images))
-    step = len(images) / count
-    return [images[int(i * step)] for i in range(count)]
+    random.shuffle(images)
+    return images[:n]
 
 
 def _recognize_crop(client: OpenAI, image_path: Path) -> dict:
