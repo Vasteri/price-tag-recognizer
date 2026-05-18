@@ -7,8 +7,8 @@ from pathlib import Path
 
 from openai import OpenAI
 
-QWEN_BASE_URL = "http://qwen3-vl:8000/v1"
-QWEN_MODEL = "qwen3-vl"
+QWEN_BASE_URL = "http://model-runner.docker.internal:12434/engines/v1"
+QWEN_MODEL = "ai/qwen3-vl"  # уточни через `docker model list`
 
 EMPTY_RESULT = {
     "product_name": None,
