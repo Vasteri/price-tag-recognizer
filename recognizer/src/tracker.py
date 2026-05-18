@@ -37,7 +37,11 @@ def process_tracking(
     model_path=None,
     ):
     if model_path is None:
-        model_path = hf_hub_download(repo_id=repo_id, filename=repo_filename)
+        model_path = hf_hub_download(
+            repo_id=repo_id,
+            filename=repo_filename,
+            cache_dir="/hf_cache"
+        )
 
     model = YOLO(model_path)
     cap = cv2.VideoCapture(source_path)

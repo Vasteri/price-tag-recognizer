@@ -6,6 +6,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install openai
 
+COPY ./src/download_model.py .
+RUN python download_model.py
+
 COPY ./src ./src
 
 ENV PYTHONPATH=/app
