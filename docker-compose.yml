@@ -35,8 +35,6 @@ services:
       - shared_volume:/shared
     environment:
       - REDIS_URL=redis://redis:6379/0
-    extra_hosts:
-      - "model-runner.docker.internal:host-gateway"
     deploy:
       resources:
         reservations:
