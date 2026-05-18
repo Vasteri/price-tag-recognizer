@@ -1,7 +1,4 @@
-import json
 from pathlib import Path
-
-import pandas as pd
 
 from .celery_app import celery_app
 from .config import RESULT_DIR, UPLOAD_DIR
