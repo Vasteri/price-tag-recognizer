@@ -9,7 +9,7 @@ services:
       - ./frontend/static:/usr/share/nginx/html
     depends_on:
       - backend
-  
+
   redis:
     image: redis:alpine3.23
     restart: unless-stopped
@@ -29,6 +29,8 @@ services:
       - shared_volume:/shared
     environment:
       - REDIS_URL=redis://redis:6379/0
+    extra_hosts:
+      - "model-runner.docker.internal:host-gateway"
     deploy:
       resources:
         reservations:
