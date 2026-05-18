@@ -3,10 +3,14 @@ import csv
 import json
 import random
 from pathlib import Path
+from PIL import Image
+import numpy as np
 
 from openai import OpenAI
 
 from .config import LLM_BASE_URL, LLM_MODEL
+
+from .ocr import OCRService
 
 # LLM_BASE_URL = "http://host.docker.internal:12434/v1"
 # LLM_MODEL = "ai/qwen3-vl:2B-UD-Q4_K_XL"  # уточни через `docker model list`
@@ -94,30 +98,41 @@ def _sample_crops(track_dir: Path, n: int) -> list[Path]:
     return images[:n]
 
 
-def _recognize_crop(client: OpenAI, image_path: Path) -> dict:
+def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict = None) -> dict:
+    content = []
+    content.append({
+        "type": "text",
+        "text": "Ты — профессиональный распознаватель ценников. Используй следующую схему для извлечения данных:",
+    })
+    content.append({
+        "type": "image_url",
+        "image_url": {"url": f"data:image/jpeg;base64,{SCHEMA_IMAGE}"},
+    })
+    content.append({
+        "type": "text",
+        "text": "Распознай данные на следующем изображении ценника, строго следуя структуре полей, описанной выше. Выполни следующие требования: " + PRICE_TAG_PROMPT
+    })
+    if ocr_predict is not None:
+        content.append({
+            "type": "text",
+            "text": (
+                "Для помощи тебе предоставлены данные распознавания от другой OCR-системы: \n"
+                f"--- НАЧАЛО ПОДСКАЗКИ ---\n{ocr_predict}\n--- КОНЕЦ ПОДСКАЗКИ ---\n"
+                "Используй эти данные для уточнения трудночитаемого текста, но помни: "
+                "другая OCR могла ошибиться. Твоя главная задача — извлечь данные СТРОГО по изображению. "
+                "Если данные из подсказки противоречат тому, что ты видишь на фото, приоритет отдавай фото."
+            )
+        })
+    content.append({
+        "type": "image_url",
+        "image_url": {"url": f"data:image/jpeg;base64,{_encode_image(image_path)}"}
+    })
     response = client.chat.completions.create(
         model=LLM_MODEL,
-        messages=[
+        messages =[
             {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": "Схема расположения полей на ценнике:"},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{SCHEMA_IMAGE}"},
-                    },
-                    {
-                        "type": "text",
-                        "text": "Распознай следующий ценник согласно схеме:",
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{_encode_image(image_path)}"
-                        },
-                    },
-                    {"type": "text", "text": PRICE_TAG_PROMPT},
-                ],
+                "content": content,
             }
         ],
         max_tokens=512,
@@ -145,6 +160,7 @@ def recognize_tracks(tracks_path: Path, crops_per_track: int = 3) -> list[dict]:
     """
     client = OpenAI(base_url=LLM_BASE_URL, api_key="none")
     output = []
+    ocr = OCRService()
 
     for track_dir in sorted(tracks_path.glob("track_*")):
         track_id = int(track_dir.name.split("_")[1])
@@ -152,10 +168,23 @@ def recognize_tracks(tracks_path: Path, crops_per_track: int = 3) -> list[dict]:
         if not crops:
             continue
 
-        predictions = [
-            {"image": crop.name, "data": _recognize_crop(client, crop)}
-            for crop in crops
-        ]
+
+        predictions = []
+        for crop in crops:
+            img = np.array(Image.open(crop))
+            ocr_predict = ocr.predict([img])
+            if len(ocr_predict) == 0:
+                print("Пустой OCR Predict")
+                ocr_predict=None
+            else:
+                ocr_predict = ocr_predict[0].texts
+
+            llm_predict = _recognize_crop(client, crop, ocr_predict)
+            predictions.append({
+                "image": crop.name,
+                "data": llm_predict
+            })
+
         output.append({"track_id": track_id, "predictions": predictions})
 
     return output

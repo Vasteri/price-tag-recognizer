@@ -4,7 +4,8 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install paddlepaddle -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
 
 COPY ./src/download_model.py .
 RUN python download_model.py

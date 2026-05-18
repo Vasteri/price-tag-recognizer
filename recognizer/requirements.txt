@@ -4,3 +4,4 @@ dotenv
 huggingface_hub
 redis
 lap
+paddleocr
