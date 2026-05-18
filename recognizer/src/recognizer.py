@@ -8,8 +8,8 @@ from openai import OpenAI
 
 from .config import LLM_BASE_URL, LLM_MODEL
 
-#LLM_BASE_URL = "http://host.docker.internal:12434/v1"
-#LLM_MODEL = "ai/qwen3-vl:2B-UD-Q4_K_XL"  # уточни через `docker model list`
+# LLM_BASE_URL = "http://host.docker.internal:12434/v1"
+# LLM_MODEL = "ai/qwen3-vl:2B-UD-Q4_K_XL"  # уточни через `docker model list`
 
 FIELDS = [
     "filename",
@@ -63,37 +63,23 @@ EMPTY_RESULT = {f: None for f in RECOGNIZED_FIELDS}
 PRICE_TAG_PROMPT = """Ты — система распознавания ценников в российских магазинах.
 На изображении фрагмент ценника. Верни ТОЛЬКО валидный JSON без markdown и пояснений.
 
-Поля:
-- product_name: полное название товара с объёмом/весом, например "Напиток безалкогольный SANTO STEFANO Rosso 0,25L"
-- price_default: обычная цена (число с копейками через точку), например 252.63
-- price_card: цена по карте лояльности (число), например 129.99
-- price_discount: цена по акции если есть (число), например 99.99
-- barcode: штрихкод (строка цифр), например "4670025474665"
-- discount_amount: размер скидки если указан, например "-48%"
-- id_sku: внутренний артикул/SKU магазина (строка цифр)
-- print_datetime: дата и время печати ценника, например "03.04.2026 3:08"
-- code: код на ценнике если есть (отличается от штрихкода и SKU)
-- additional_info: любая дополнительная информация (страна, состав, пометки)
-- color: цвет ценника (red, yellow, green, white, blue или другой)
-- special_symbols: спецсимволы или пометки на ценнике (звёздочки, значки и т.п.)
+Важно: извлекай ТОЛЬКО то, что реально видно на изображении. Не придумывай и не дополняй значения. Если поле не читается или отсутствует — null.
 
-Если поле не читается или отсутствует — null.
+Поля и их типы:
+- product_name (string): полное название товара с объёмом/весом
+- price_default (float): обычная цена с копейками через точку
+- price_card (float): цена по карте лояльности
+- price_discount (float): цена по акции
+- barcode (string): штрихкод, только цифры
+- discount_amount (string): размер скидки, например "-48%"
+- id_sku (string): внутренний артикул/SKU магазина, только цифры
+- print_datetime (string): дата и время печати ценника, например "03.04.2026 3:08"
+- code (string): код на ценнике если есть, отличается от штрихкода и SKU
+- additional_info (string): любая дополнительная информация
+- color (string): цвет ценника — одно из: red, yellow, green, white, blue или другой
+- special_symbols (string): спецсимволы или пометки на ценнике"""
 
-Пример ответа:
-{
-  "product_name": "Напиток безалкогольный SANTO STEFANO Rosso (Россия) 0,25L",
-  "price_default": 252.63,
-  "price_card": 129.99,
-  "price_discount": null,
-  "barcode": "4670025474665",
-  "discount_amount": "-48%",
-  "id_sku": "270207736530",
-  "print_datetime": "03.04.2026 3:08",
-  "code": null,
-  "additional_info": null,
-  "color": "red",
-  "special_symbols": null
-}"""
+SCHEMA_IMAGE = _encode_image(Path(__file__).parent / "assets" / "scheme_price_tag.jpg")
 
 
 def _encode_image(path: Path) -> str:
@@ -116,13 +102,22 @@ def _recognize_crop(client: OpenAI, image_path: Path) -> dict:
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": PRICE_TAG_PROMPT},
+                    {"type": "text", "text": "Схема расположения полей на ценнике:"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{SCHEMA_IMAGE}"},
+                    },
+                    {
+                        "type": "text",
+                        "text": "Распознай следующий ценник согласно схеме:",
+                    },
                     {
                         "type": "image_url",
                         "image_url": {
                             "url": f"data:image/jpeg;base64,{_encode_image(image_path)}"
                         },
                     },
+                    {"type": "text", "text": PRICE_TAG_PROMPT},
                 ],
             }
         ],
@@ -200,7 +195,7 @@ def save_to_csv(results: list[dict], csv_path: Path, filename: str, tracks_path:
         meta_path = tracks_path / f"track_{track_id}" / "metadata.json"
         meta = json.loads(meta_path.read_text()) if meta_path.exists() else []
 
-        row = {field: None for field in FIELDS}
+        row = {field: "нет" for field in FIELDS}
         row.update(_aggregate_track(track["predictions"], meta))
         row["filename"] = filename
         rows.append(row)
