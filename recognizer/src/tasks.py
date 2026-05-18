@@ -5,7 +5,7 @@ import pandas as pd
 
 from .celery_app import celery_app
 from .config import RESULT_DIR, UPLOAD_DIR
-from .recognizer import recognize_tracks
+from .recognizer import recognize_tracks, save_to_csv
 from .tracker import process_tracking
 
 
@@ -42,9 +42,17 @@ def process_video(self, video_path_str: str):
     csv_path = video_path_str.replace(".mp4", ".csv").replace(UPLOAD_DIR, RESULT_DIR)
     pd.DataFrame(results).to_csv(csv_path, index=False)
 
-    json_path = recognize_price_tags(str(tracks_path), video_path_str)["json_path"]
-    #return {"csv_path": csv_path}
-    return {"csv_path": json_path}
+    self.update_state(state="PROCESSING", meta={"progress": 0})
+    results = recognize_tracks(tracks_path)
+
+    csv_path = Path(
+        video_path_str.replace(".mp4", ".csv").replace(UPLOAD_DIR, RESULT_DIR)
+    )
+    save_to_csv(results, csv_path, video_path.name, tracks_path)
+
+    self.update_state(state="PROCESSING", meta={"progress": 100})
+
+    return {"csv_path": csv_path}
 
 
 def recognize_price_tags(tracks_path_str: str, video_path_str: str):
