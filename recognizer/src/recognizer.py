@@ -7,8 +7,10 @@ from pathlib import Path
 
 from openai import OpenAI
 
-QWEN_BASE_URL = "http://model-runner.docker.internal:12434/engines/v1"
-QWEN_MODEL = "ai/qwen3-vl"  # уточни через `docker model list`
+from .config import LLM_BASE_URL, LLM_MODEL
+
+#LLM_BASE_URL = "http://host.docker.internal:12434/v1"
+#LLM_MODEL = "ai/qwen3-vl:2B-UD-Q4_K_XL"  # уточни через `docker model list`
 
 EMPTY_RESULT = {
     "product_name": None,
@@ -76,7 +78,7 @@ def _sample_crops(track_dir: Path, n: int) -> list[Path]:
 
 def _recognize_crop(client: OpenAI, image_path: Path) -> dict:
     response = client.chat.completions.create(
-        model=QWEN_MODEL,
+        model=LLM_MODEL,
         messages=[
             {
                 "role": "user",
@@ -114,7 +116,7 @@ def recognize_tracks(tracks_path: Path, crops_per_track: int = 3) -> list[dict]:
       ...
     ]
     """
-    client = OpenAI(base_url=QWEN_BASE_URL, api_key="none")
+    client = OpenAI(base_url=LLM_BASE_URL, api_key="none")
     output = []
 
     for track_dir in sorted(tracks_path.glob("track_*")):

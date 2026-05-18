@@ -42,17 +42,15 @@ def process_video(self, video_path_str: str):
     csv_path = video_path_str.replace(".mp4", ".csv").replace(UPLOAD_DIR, RESULT_DIR)
     pd.DataFrame(results).to_csv(csv_path, index=False)
 
-    recognize_price_tags.delay(str(tracks_path), video_path_str)
-    return {"csv_path": csv_path}
+    json_path = recognize_price_tags(str(tracks_path), video_path_str)["json_path"]
+    #return {"csv_path": csv_path}
+    return {"csv_path": json_path}
 
 
-@celery_app.task(bind=True, name="recognizer.tasks.recognize_price_tags")
-def recognize_price_tags(self, tracks_path_str: str, video_path_str: str):
+def recognize_price_tags(tracks_path_str: str, video_path_str: str):
     tracks_path = Path(tracks_path_str)
 
-    self.update_state(state="PROCESSING", meta={"progress": 0})
     results = recognize_tracks(tracks_path)
-    self.update_state(state="PROCESSING", meta={"progress": 100})
 
     # сохраняем сырые предсказания — мёрдж потом, когда будет понятна логика
     json_path = video_path_str.replace(".mp4", ".predictions.json").replace(

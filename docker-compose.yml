@@ -1,5 +1,9 @@
 version: "3.8"
 
+models:
+  qwen3-vl:
+    model: "ai/qwen3-vl:2B-UD-Q4_K_XL"
+  
 services:
   nginx:
     image: nginx:1.29.5
@@ -25,6 +29,8 @@ services:
 
   worker:
     build: ./recognizer
+    extra_hosts:
+      - "model-runner.docker.internal:host-gateway"
     volumes:
       - shared_volume:/shared
     environment:
