@@ -19,7 +19,6 @@ def process_video(self, video_path_str: str):
     # 1. Отслеживание треков :50% прогресс-бара
 
     # dir/vid.mp4 -> dir/vid.mp4.tracks/
-    # можно заменить на то как удобней будет
     tracks_path = video_path.parent / (video_path.name + ".tracks")
     tracks_path.mkdir(parents=True, exist_ok=True)
 
@@ -36,13 +35,7 @@ def process_video(self, video_path_str: str):
         )
 
     # 2.
-    ...
-
-    results = [video_path_str.split("/")[-1].split(".")[0]]
-    csv_path = video_path_str.replace(".mp4", ".csv").replace(UPLOAD_DIR, RESULT_DIR)
-    pd.DataFrame(results).to_csv(csv_path, index=False)
-
-    self.update_state(state="PROCESSING", meta={"progress": 0})
+    self.update_state(state="PROCESSING", meta={"progress": 50})
     results = recognize_tracks(tracks_path)
 
     csv_path = Path(
@@ -52,18 +45,4 @@ def process_video(self, video_path_str: str):
 
     self.update_state(state="PROCESSING", meta={"progress": 100})
 
-    return {"csv_path": csv_path}
-
-
-def recognize_price_tags(tracks_path_str: str, video_path_str: str):
-    tracks_path = Path(tracks_path_str)
-
-    results = recognize_tracks(tracks_path)
-
-    # сохраняем сырые предсказания — мёрдж потом, когда будет понятна логика
-    json_path = video_path_str.replace(".mp4", ".predictions.json").replace(
-        UPLOAD_DIR, RESULT_DIR
-    )
-    Path(json_path).write_text(json.dumps(results, ensure_ascii=False, indent=2))
-
-    return {"json_path": json_path}
+    return {"csv_path": str(csv_path)}
