@@ -66,8 +66,7 @@ RECOGNIZED_FIELDS = [
 
 EMPTY_RESULT = {f: None for f in RECOGNIZED_FIELDS}
 
-PRICE_TAG_PROMPT = """Ты — система распознавания ценников в российских магазинах.
-На изображении фрагмент ценника. Верни ТОЛЬКО валидный JSON без markdown и пояснений.
+PRICE_TAG_PROMPT = """На изображении фрагмент ценника. Верни ТОЛЬКО валидный JSON без markdown и пояснений.
 
 Важно: извлекай ТОЛЬКО то, что реально видно на изображении. Не придумывай и не дополняй значения. Если поле не читается или отсутствует — null.
 
@@ -95,113 +94,72 @@ SCHEMA_IMAGE = _encode_image(
 )
 
 
-def _image_quality_score(image_path: Path) -> float:
-    """
-    Возвращает скалярную оценку качества изображения [0, +inf).
-    Чем выше — тем лучше кроп для распознавания.
-
-    Метрики:
-      - Лапласиан (резкость): variance of Laplacian — главный показатель размытости.
-        Размытые кропы дают низкие значения (<50 считается смаз).
-      - Контраст: std яркости по серому каналу — слишком низкий = выгоревший/тёмный кроп.
-      - Штраф за экстремальную яркость: если средняя яркость <30 или >225 — кроп
-        слишком тёмный/засвеченный, штрафуем множителем.
-    """
-    img_bgr = cv2.imread(str(image_path))
-    if img_bgr is None:
-        return 0.0
-
-    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-
-    # 1. Резкость — дисперсия лапласиана
-    sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
-
-    # 2. Контраст — стандартное отклонение яркости
-    contrast = float(gray.std())
-
-    # 3. Средняя яркость — штраф за засветку/темноту
-    mean_brightness = float(gray.mean())
-    if mean_brightness < 30 or mean_brightness > 225:
-        brightness_penalty = 0.5
-    else:
-        brightness_penalty = 1.0
-
-    # Итоговая оценка: взвешенная сумма с поправкой на яркость
-    score = (sharpness * 0.7 + contrast * 0.3) * brightness_penalty
-    return score
-
-
 def _sample_crops(track_dir: Path, n: int) -> list[Path]:
-    """
-    Выбирает топ-n кропов из трека по оценке качества изображения.
-    Fallback на пустой список, если изображений нет.
-    """
     images = sorted((track_dir / "images").glob("*.jpg"))
     if not images:
         return []
-
-    scored = [(img, _image_quality_score(img)) for img in images]
-    # Сортируем по убыванию качества
-    scored.sort(key=lambda x: x[1], reverse=True)
-
-    selected = [img for img, _ in scored[:n]]
-    return selected
+    random.shuffle(images)
+    return images[:n]
 
 
 def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
-    content = []
-    content.append(
-        {
-            "type": "text",
-            "text": "Ты — профессиональный распознаватель ценников. Используй следующую схему для извлечения данных:",
-        }
-    )
-    content.append(
-        {
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{SCHEMA_IMAGE}"},
-        }
-    )
-    content.append(
-        {
-            "type": "text",
-            "text": "Распознай данные на следующем изображении ценника, строго следуя структуре полей, описанной выше. Выполни следующие требования: "
-            + PRICE_TAG_PROMPT,
-        }
-    )
-    if ocr_predict is not None:
+    try:
+        content = []
         content.append(
             {
                 "type": "text",
-                "text": (
-                    "Для помощи тебе предоставлены данные распознавания от другой OCR-системы: \n"
-                    f"--- НАЧАЛО ПОДСКАЗКИ ---\n{ocr_predict}\n--- КОНЕЦ ПОДСКАЗКИ ---\n"
-                    "Используй эти данные для уточнения трудночитаемого текста, но помни: "
-                    "другая OCR могла ошибиться. Твоя главная задача — извлечь данные СТРОГО по изображению. "
-                    "Если данные из подсказки противоречат тому, что ты видишь на фото, приоритет отдавай фото."
-                ),
+                "text": "Ты — профессиональный распознаватель ценников. Используй следующую схему для извлечения данных:",
             }
         )
-    content.append(
-        {
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{_encode_image(image_path)}"},
-        }
-    )
-    response = client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=[
+        content.append(
             {
-                "role": "user",
-                "content": content,
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{SCHEMA_IMAGE}"},
             }
-        ],
-        max_tokens=512,
-    )
-    raw = response.choices[0].message.content.strip()
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
+        )
+        content.append(
+            {
+                "type": "text",
+                "text": "Распознай данные на следующем изображении ценника, строго следуя структуре полей, описанной выше. Выполни следующие требования: "
+                + PRICE_TAG_PROMPT,
+            }
+        )
+        if ocr_predict is not None:
+            content.append(
+                {
+                    "type": "text",
+                    "text": (
+                        "Для помощи тебе предоставлены данные распознавания от другой OCR-системы: \n"
+                        f"--- НАЧАЛО ПОДСКАЗКИ ---\n{ocr_predict}\n--- КОНЕЦ ПОДСКАЗКИ ---\n"
+                        "Используй эти данные для уточнения трудночитаемого текста, но помни: "
+                        "другая OCR могла ошибиться. Твоя главная задача — извлечь данные СТРОГО по изображению. "
+                        "Если данные из подсказки противоречат тому, что ты видишь на фото, приоритет отдавай фото."
+                    ),
+                }
+            )
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{_encode_image(image_path)}"},
+            }
+        )
+
+        response = client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[{"role": "user", "content": content}],
+            max_tokens=512,
+        )
+
+        if not response.choices:
+            return EMPTY_RESULT
+
+        raw = response.choices[0].message.content.strip()
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return EMPTY_RESULT
+
+    except Exception:
         return EMPTY_RESULT
 
 
