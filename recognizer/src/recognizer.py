@@ -8,9 +8,10 @@ import numpy as np
 
 from openai import OpenAI
 
-from .config import LLM_BASE_URL, LLM_MODEL
+from .config import LLM_BASE_URL, LLM_MODEL, ENABLE_OCR
 
-from .ocr import OCRService
+if ENABLE_OCR == "true":
+    from .ocr import OCRService
 
 # LLM_BASE_URL = "http://host.docker.internal:12434/v1"
 # LLM_MODEL = "ai/qwen3-vl:2B-UD-Q4_K_XL"  # уточни через `docker model list`
@@ -160,7 +161,8 @@ def recognize_tracks(tracks_path: Path, crops_per_track: int = 3) -> list[dict]:
     """
     client = OpenAI(base_url=LLM_BASE_URL, api_key="none")
     output = []
-    ocr = OCRService()
+    if ENABLE_OCR == "true":
+        ocr = OCRService()
 
     for track_dir in sorted(tracks_path.glob("track_*")):
         track_id = int(track_dir.name.split("_")[1])
@@ -171,8 +173,10 @@ def recognize_tracks(tracks_path: Path, crops_per_track: int = 3) -> list[dict]:
 
         predictions = []
         for crop in crops:
-            img = np.array(Image.open(crop))
-            ocr_predict = ocr.predict([img])
+            ocr_predict = []
+            if ENABLE_OCR == "true":
+                img = np.array(Image.open(crop))
+                ocr_predict = ocr.predict([img])
             if len(ocr_predict) == 0:
                 print("Пустой OCR Predict")
                 ocr_predict=None
