@@ -259,6 +259,35 @@ price-tag-recognizer/
 
 ---
 
+# Docker Support
+
+Проект поднимается локально через `docker-compose.yml`, без ручной сборки образов.
+
+## Запуск
+
+```bash
+docker compose up --build
+```
+
+или (если уже собран образ):
+
+```bash
+docker compose up
+```
+
+---
+
+## Что поднимается через docker-compose
+
+Вся система запускается как единый pipeline-сервис:
+
+- YOLO inference (детекция ценников)
+- OCR слой (PaddleOCR, опционально)
+- Qwen3-VL-2B inference (semantic extraction)
+- Pipeline orchestrator (video → frames → aggregation → CSV)
+
+---
+
 # License
 
 MIT License
