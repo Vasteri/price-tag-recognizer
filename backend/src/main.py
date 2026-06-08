@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile
 from fastapi.responses import FileResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 import uuid
 import os
 
@@ -9,6 +10,7 @@ from .celery_app import celery_app
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(RESULT_DIR, exist_ok=True)
 app = FastAPI(root_path="/api")
+Instrumentator().instrument(app).expose(app)
 
 @app.post("/upload")
 async def upload_video(file: UploadFile):
