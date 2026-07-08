@@ -1,8 +1,4 @@
 version: "3.8"
-
-models:
-  qwen3-vl:
-    model: "ai/qwen3-vl:2B-UD-Q4_K_XL"
   
 services:
   nginx:
@@ -34,8 +30,6 @@ services:
     build: 
       context: ./recognizer
       dockerfile: Dockerfile-cpu
-    extra_hosts:
-      - "model-runner.docker.internal:host-gateway"
     volumes:
       - shared_volume:/shared
     environment:
@@ -49,6 +43,29 @@ services:
     #           capabilities: [gpu]
     depends_on:
       - redis
+      - llama-cpp-server
+
+  llama-cpp-server:
+    image: ghcr.io/ggml-org/llama.cpp:server-b9821@sha256:8db2355dadeb26802dbd20dbd9749155a8adfa437ab6848566859eb9d385540c
+    # ports:
+    #   - "8000:8000"
+    volumes:
+      - llm_volume:/root/.cache
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    command: >
+      -hf Qwen/Qwen3-VL-2B-Instruct-GGUF:Q4_K_M
+      --jinja
+      -c 65535
+      --port 8000
+      --host 0.0.0.0
+      -t 8  # количество потоков CPU
+      --metrics
 
   flower:
     image: mher/flower:2.0.1
@@ -65,7 +82,6 @@ services:
       - prometheus_data:/prometheus
     command:
         - '--config.file=/etc/prometheus/prometheus.yml'
-    #restart: always
     depends_on:
       - flower
       - backend
@@ -103,3 +119,4 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  llm_volume:

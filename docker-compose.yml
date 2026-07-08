@@ -1,8 +1,4 @@
 version: "3.8"
-
-models:
-  qwen3-vl:
-    model: "ai/qwen3-vl:2B-UD-Q4_K_XL"
   
 services:
   nginx:
@@ -34,8 +30,6 @@ services:
     build: 
       context: ./recognizer
       dockerfile: Dockerfile
-    extra_hosts:
-      - "model-runner.docker.internal:host-gateway"
     volumes:
       - shared_volume:/shared
     environment:
@@ -49,6 +43,29 @@ services:
               capabilities: [gpu]
     depends_on:
       - redis
+      - llama-cpp-server
+
+  llama-cpp-server:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda13-b9821@sha256:649b128c557eb6d675afac69bac443ce1b709cd143e85ef10b67f1639de4cbb0
+    # ports:
+    #   - "8000:8000"
+    volumes:
+      - ./models:/models 
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: >
+      -m /models/Qwen3-VL-2B-Instruct-Q4_K_M.gguf
+      --jinja
+      -c 65535
+      --port 8000
+      --host 0.0.0.0
+      --n-gpu-layers 99
+      --metrics
 
   flower:
     image: mher/flower:2.0.1
