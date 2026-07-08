@@ -60,6 +60,7 @@ services:
               capabilities: [gpu]
     command: >
       -m /models/Qwen3-VL-2B-Instruct-Q4_K_M.gguf
+      --mmproj /models/mmproj-Qwen3-VL-2B-Instruct-F16.gguf
       --jinja
       -c 65535
       --port 8000

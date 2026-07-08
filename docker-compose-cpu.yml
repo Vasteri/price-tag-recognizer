@@ -50,7 +50,7 @@ services:
     # ports:
     #   - "8000:8000"
     volumes:
-      - llm_volume:/root/.cache
+      - ./models:/models
     # deploy:
     #   resources:
     #     reservations:
@@ -59,7 +59,8 @@ services:
     #           count: all
     #           capabilities: [gpu]
     command: >
-      -hf Qwen/Qwen3-VL-2B-Instruct-GGUF:Q4_K_M
+      -m /models/Qwen3-VL-2B-Instruct-Q4_K_M.gguf
+      --mmproj /models/mmproj-Qwen3-VL-2B-Instruct-F16.gguf
       --jinja
       -c 65535
       --port 8000
