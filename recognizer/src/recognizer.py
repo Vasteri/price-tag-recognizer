@@ -1,7 +1,9 @@
 import base64
 import csv
 import json
+import logging
 import random
+import time
 from pathlib import Path
 
 import cv2
@@ -10,6 +12,8 @@ from openai import OpenAI
 from PIL import Image
 
 from .config import ENABLE_OCR, LLM_BASE_URL, LLM_MODEL
+
+logger = logging.getLogger(__name__)
 
 if ENABLE_OCR == "true":
     from .ocr import OCRService
@@ -103,6 +107,10 @@ def _sample_crops(track_dir: Path, n: int) -> list[Path]:
 
 
 def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
+    start = time.monotonic()
+    has_ocr_hint = ocr_predict is not None
+    logger.info("vlm.request", extra={"image": image_path.name, "ocr_hint": has_ocr_hint})
+
     try:
         content = []
         content.append(
@@ -150,16 +158,31 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
             max_tokens=512,
         )
 
+        latency = round(time.monotonic() - start, 3)
+
         if not response.choices:
+            logger.warning("vlm.response", extra={"image": image_path.name, "latency": latency, "status": "no_choices"})
             return EMPTY_RESULT
 
         raw = response.choices[0].message.content.strip()
         try:
-            return json.loads(raw)
+            result = json.loads(raw)
+            fields_count = sum(1 for v in result.values() if v is not None)
+            fields_ratio = round(fields_count / len(RECOGNIZED_FIELDS), 3)
+            logger.info("vlm.response", extra={
+                "image": image_path.name, "latency": latency, "status": "ok",
+                "fields_count": fields_count, "fields_ratio": fields_ratio,
+            })
+            return result
         except json.JSONDecodeError:
+            logger.warning("vlm.parse_error", extra={
+                "image": image_path.name, "latency": latency, "raw": raw,
+            })
             return EMPTY_RESULT
 
-    except Exception:
+    except Exception as exc:
+        latency = round(time.monotonic() - start, 3)
+        logger.error("vlm.exception", extra={"image": image_path.name, "latency": latency, "error": str(exc)})
         return EMPTY_RESULT
 
 
@@ -194,13 +217,23 @@ def recognize_tracks(tracks_path: Path, crops_per_track: int = 5):
                 img = np.array(Image.open(crop))
                 ocr_predict = ocr.predict([img])
             if len(ocr_predict) == 0:
-                print("Пустой OCR Predict")
+                logger.warning("ocr.empty", extra={"crop": crop.name})
                 ocr_predict = None
             else:
                 ocr_predict = ocr_predict[0].texts
 
             llm_predict = _recognize_crop(client, crop, ocr_predict)
             predictions.append({"image": crop.name, "data": llm_predict})
+
+        best_fields_count = max(
+            sum(1 for f in RECOGNIZED_FIELDS if p["data"].get(f) is not None)
+            for p in predictions
+        )
+        best_fields_ratio = round(best_fields_count / len(RECOGNIZED_FIELDS), 3)
+        logger.info("track.completed", extra={
+            "track_id": track_id, "num_crops": len(crops),
+            "best_fields_count": best_fields_count, "best_fields_ratio": best_fields_ratio,
+        })
 
         yield idx, total, [{"track_id": track_id, "predictions": predictions}]
 
