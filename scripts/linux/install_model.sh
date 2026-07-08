@@ -5,3 +5,6 @@ mkdir -p "$MODEL_DIR"
 
 wget -O "$MODEL_DIR/Qwen3-VL-2B-Instruct-Q4_K_M.gguf" \
   https://huggingface.co/lmstudio-community/Qwen3-VL-2B-Instruct-GGUF/resolve/main/Qwen3-VL-2B-Instruct-Q4_K_M.gguf
+
+wget -O "$MODEL_DIR/mmproj-Qwen3-VL-2B-Instruct-F16.gguf" \
+  https://huggingface.co/lmstudio-community/Qwen3-VL-2B-Instruct-GGUF/resolve/main/mmproj-Qwen3-VL-2B-Instruct-F16.gguf
