@@ -5,6 +5,7 @@ import logging
 import random
 import time
 from pathlib import Path
+import re
 
 import cv2
 import numpy as np
@@ -165,6 +166,8 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
             return EMPTY_RESULT
 
         raw = response.choices[0].message.content.strip()
+        if raw[:3] == "```":
+            raw = raw[7:-3]
         try:
             result = json.loads(raw)
             fields_count = sum(1 for v in result.values() if v is not None)
@@ -175,9 +178,14 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
             })
             return result
         except json.JSONDecodeError:
-            logger.warning("vlm.parse_error", extra={
-                "image": image_path.name, "latency": latency, "raw": raw,
-            })
+            logger.warning(
+                f"vlm.parse_error {raw}",
+                extra={
+                    "image": image_path.name,
+                    "latency": latency,
+                    "response": raw,
+                },
+            )
             return EMPTY_RESULT
 
     except Exception as exc:
