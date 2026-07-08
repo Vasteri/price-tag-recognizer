@@ -2,5 +2,6 @@ venv
 .venv
 __pycache__
 videos
+models/*.gguf
 
 recognizer/exp_data

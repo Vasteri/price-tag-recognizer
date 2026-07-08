@@ -45,10 +45,8 @@ services:
       - redis
       - llama-cpp-server
 
-  llama-cpp-server:
+  llama-cpp-server: # port 8000
     image: ghcr.io/ggml-org/llama.cpp:server-b9821@sha256:8db2355dadeb26802dbd20dbd9749155a8adfa437ab6848566859eb9d385540c
-    # ports:
-    #   - "8000:8000"
     volumes:
       - ./models:/models
     # deploy:
@@ -65,7 +63,7 @@ services:
       -c 65535
       --port 8000
       --host 0.0.0.0
-      -t 8  # количество потоков CPU
+      -t 8
       --metrics
 
   flower:
@@ -120,4 +118,3 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
-  llm_volume:

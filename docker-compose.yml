@@ -45,10 +45,8 @@ services:
       - redis
       - llama-cpp-server
 
-  llama-cpp-server:
+  llama-cpp-server: # port 8000
     image: ghcr.io/ggml-org/llama.cpp:server-cuda13-b9821@sha256:649b128c557eb6d675afac69bac443ce1b709cd143e85ef10b67f1639de4cbb0
-    # ports:
-    #   - "8000:8000"
     volumes:
       - ./models:/models 
     deploy:
