@@ -3,7 +3,9 @@ import csv
 import json
 import logging
 import random
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import re
 
@@ -107,6 +109,55 @@ def _sample_crops(track_dir: Path, n: int) -> list[Path]:
     return images[:n]
 
 
+def batch_ocr(ocr_service, crop_paths: list[Path]) -> list:
+    images = [np.array(Image.open(p)) for p in crop_paths]
+    results = ocr_service.predict(images)
+    return [r.texts if r.texts else None for r in results]
+
+
+def concurrent_recognize(client: OpenAI, crop_paths: list[Path],
+                          ocr_hints: list) -> list[dict]:
+    with ThreadPoolExecutor(max_workers=len(crop_paths)) as pool:
+        futures = [
+            pool.submit(_recognize_crop, client, path, hint)
+            for path, hint in zip(crop_paths, ocr_hints)
+        ]
+    return [f.result() for f in futures]
+
+
+def _process_one_track(track_dir: Path, client: OpenAI,
+                       ocr_service, ocr_lock, crops_per_track: int = 5) -> dict | None:
+    crops = _sample_crops(track_dir, crops_per_track)
+    track_id = int(track_dir.name.split("_")[1])
+
+    if not crops:
+        logger.warning("track.empty", extra={"track_id": track_id})
+        return {"track_id": track_id, "predictions": []}
+
+    ocr_hints = [None] * len(crops)
+    if ocr_service:
+        with ocr_lock:
+            ocr_hints = batch_ocr(ocr_service, crops)
+
+    predictions_data = concurrent_recognize(client, crops, ocr_hints)
+    predictions = [
+        {"image": c.name, "data": p}
+        for c, p in zip(crops, predictions_data)
+    ]
+
+    best_fields_count = max(
+        sum(1 for f in RECOGNIZED_FIELDS if p.get(f) is not None)
+        for p in predictions_data
+    ) if predictions_data else 0
+    logger.info("track.completed", extra={
+        "track_id": track_id, "num_crops": len(crops),
+        "best_fields_count": best_fields_count,
+        "best_fields_ratio": round(best_fields_count / len(RECOGNIZED_FIELDS), 3),
+    })
+
+    return {"track_id": track_id, "predictions": predictions}
+
+
 def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
     start = time.monotonic()
     has_ocr_hint = ocr_predict is not None
@@ -194,10 +245,14 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
         return EMPTY_RESULT
 
 
-def recognize_tracks(tracks_path: Path, crops_per_track: int = 5):
+def recognize_tracks(tracks_path: Path, crops_per_track: int = 5,
+                     max_track_workers: int = 3):
     """
     Генератор. После обработки каждого трека yielдит:
       (current_track_index, total_tracks, predictions_so_far)
+
+    Треки обрабатываются параллельно через ThreadPoolExecutor.
+    Внутри каждого трека: batch OCR + concurrent VLM.
 
     Пример использования:
       results = []
@@ -205,45 +260,31 @@ def recognize_tracks(tracks_path: Path, crops_per_track: int = 5):
           results.extend(batch)
     """
     client = OpenAI(base_url=LLM_BASE_URL, api_key="none")
+
+    ocr_service = None
+    ocr_lock = None
     if ENABLE_OCR == "true":
-        ocr = OCRService()
+        ocr_service = OCRService()
+        ocr_lock = threading.Lock()
 
     track_dirs = sorted(tracks_path.glob("track_*"))
     total = len(track_dirs)
 
-    for idx, track_dir in enumerate(track_dirs, start=1):
-        track_id = int(track_dir.name.split("_")[1])
-        crops = _sample_crops(track_dir, crops_per_track)
-        if not crops:
-            yield idx, total, []
-            continue
+    if total == 0:
+        return
 
-        predictions = []
-        for crop in crops:
-            ocr_predict = []
-            if ENABLE_OCR == "true":
-                img = np.array(Image.open(crop))
-                ocr_predict = ocr.predict([img])
-            if len(ocr_predict) == 0:
-                logger.warning("ocr.empty", extra={"crop": crop.name})
-                ocr_predict = None
-            else:
-                ocr_predict = ocr_predict[0].texts
+    n_workers = min(max_track_workers, total)
+    with ThreadPoolExecutor(max_workers=n_workers) as pool:
+        futures = {
+            pool.submit(_process_one_track, td, client,
+                        ocr_service, ocr_lock, crops_per_track): td
+            for td in track_dirs
+        }
 
-            llm_predict = _recognize_crop(client, crop, ocr_predict)
-            predictions.append({"image": crop.name, "data": llm_predict})
-
-        best_fields_count = max(
-            sum(1 for f in RECOGNIZED_FIELDS if p["data"].get(f) is not None)
-            for p in predictions
-        )
-        best_fields_ratio = round(best_fields_count / len(RECOGNIZED_FIELDS), 3)
-        logger.info("track.completed", extra={
-            "track_id": track_id, "num_crops": len(crops),
-            "best_fields_count": best_fields_count, "best_fields_ratio": best_fields_ratio,
-        })
-
-        yield idx, total, [{"track_id": track_id, "predictions": predictions}]
+        for idx, future in enumerate(as_completed(futures), start=1):
+            result = future.result()
+            batch = [result] if result["predictions"] else []
+            yield idx, total, batch
 
 
 def _aggregate_track(predictions: list[dict], meta: list[dict]) -> dict:
