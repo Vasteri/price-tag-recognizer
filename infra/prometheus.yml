@@ -11,3 +11,8 @@ scrape_configs:
     static_configs:
       - targets: ['flower:5555']
     metrics_path: /flower/metrics
+
+  - job_name: 'scrap_llama-cpp-server'
+    static_configs:
+      - targets: ['llama-cpp-server:8000']
+    metrics_path: /metrics

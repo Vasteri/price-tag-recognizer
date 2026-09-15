@@ -75,6 +75,7 @@ services:
       --mmproj ${MMPROJ_PATH}
       --jinja
       -c ${CONTEXT_SIZE}
+      --image-min-tokens ${IMAGE_MIN_TOKENS}
       --port 8000
       --host 0.0.0.0
       --n-gpu-layers ${GPU_LAYERS}
