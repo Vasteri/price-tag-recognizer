@@ -1,21 +1,28 @@
-version: "3.8"
-  
 services:
   nginx:
-    image: nginx:1.29.5
-    ports: ["80:80"]
+    image: nginx:${NGINX_VERSION}
+    ports: 
+      - "${NGINX_PORT}:80"
     volumes:
-      - ./infra/nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./frontend/static:/usr/share/nginx/html
+      - ./infra/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/static:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: always
     depends_on:
       - backend
-      - flower
-      - grafana
-    restart: always
 
   redis:
-    image: redis:alpine3.23
+    image: redis:${REDIS_VERSION}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   backend:
     build: ./backend/
@@ -34,6 +41,7 @@ services:
       - shared_volume:/shared
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - LLM_MODEL=${LLM_MODEL}
     # deploy:
     #   resources:
     #     reservations:
@@ -48,7 +56,13 @@ services:
   llama-cpp-server: # port 8000
     image: ghcr.io/ggml-org/llama.cpp:server-b9821@sha256:8db2355dadeb26802dbd20dbd9749155a8adfa437ab6848566859eb9d385540c
     volumes:
-      - ./models:/models
+      - ./models:/models:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     # deploy:
     #   resources:
     #     reservations:
@@ -57,57 +71,68 @@ services:
     #           count: all
     #           capabilities: [gpu]
     command: >
-      -m /models/Qwen3-VL-2B-Instruct-Q4_K_M.gguf
-      --mmproj /models/mmproj-Qwen3-VL-2B-Instruct-F16.gguf
+      -m ${MODEL_PATH}
+      --mmproj ${MMPROJ_PATH}
       --jinja
-      -c 65535
+      -c ${CONTEXT_SIZE}
+      --image-min-tokens ${IMAGE_MIN_TOKENS}
       --port 8000
       --host 0.0.0.0
-      -t 8
+      --n-gpu-layers ${GPU_LAYERS}
       --metrics
 
   flower:
-    image: mher/flower:2.0.1
+    image: mher/flower:${FLOWER_VERSION}
     command: celery --broker=redis://redis:6379/0 flower --port=5555 --url_prefix=/flower
     volumes:
       - flower_data:/data
+    profiles:
+      - monitoring
     depends_on:
       - redis
   
   prometheus:
-    image: prom/prometheus:v2.50.1
+    image: prom/prometheus:${PROMETHEUS_VERSION}
     volumes:
       - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
         - '--config.file=/etc/prometheus/prometheus.yml'
+    profiles:
+      - monitoring
     depends_on:
       - flower
       - backend
 
   promtail:
-    image: grafana/promtail:3.6.11
+    image: grafana/promtail:${PROMTAIL_VERSION}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock # Доступ к демону Docker
+      - /var/run/docker.sock:/var/run/docker.sock # Доступ к демону Docker для чтения логов
       - ./infra/promtail-config.yaml:/etc/promtail/config.yml:ro
     command: -config.file=/etc/promtail/config.yml
+    profiles:
+      - monitoring
     depends_on:
       - loki
 
   loki:
-    image: grafana/loki:3.7.2 # port 3100
+    image: grafana/loki:${LOKI_VERSION} # port 3100
     command: -config.file=/etc/loki/local-config.yaml
     volumes: 
       - loki_data:/loki
+    profiles:
+      - monitoring
   
   grafana:
-    image: grafana/grafana:10.4.0
+    image: grafana/grafana:${GRAFANA_VERSION}
     environment:
       - GF_SERVER_ROOT_URL=/grafana
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    profiles:
+      - monitoring
     depends_on:
       - prometheus
       - loki
