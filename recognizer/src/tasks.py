@@ -11,12 +11,24 @@ from .tracker import process_tracking
 
 class JsonFormatter(logging.Formatter):
     def format(self, record):
+        standard_fields = {
+            "name", "msg", "args", "created", "filename", "funcName",
+            "levelname", "levelno", "lineno", "module", "msecs",
+            "pathname", "process", "processName", "relativeCreated",
+            "stack_info", "exc_info", "exc_text", "thread", "threadName",
+            "message", "asctime",
+        }
+        extra = {
+            key: value
+            for key, value in record.__dict__.items()
+            if key not in standard_fields and not key.startswith("_")
+        }
         return json.dumps({
             "time": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
             "level": record.levelname,
             "logger": record.name,
             "event": record.getMessage(),
-            **record.__dict__.get("extra", {}),
+            **extra,
         }, ensure_ascii=False)
 
 
@@ -38,6 +50,7 @@ def process_video(self, video_path_str: str):
     tracks_path = video_path.parent / (video_path.name + ".tracks")
     tracks_path.mkdir(parents=True, exist_ok=True)
 
+    tracking_start = time.monotonic()
     for frames_processed, total_frames in process_tracking(
         source_path=video_path,
         output_path=tracks_path,
@@ -49,17 +62,27 @@ def process_video(self, video_path_str: str):
             state="PROCESSING",
             meta={"progress": 50 * frames_processed / total_frames},
         )
+    tracking_duration = round(time.monotonic() - tracking_start, 2)
 
     # 2. Распознавание: 50% → 100%
     self.update_state(state="PROCESSING", meta={"progress": 50})
 
     results = []
+    recognition_start = time.monotonic()
     for current, total, batch in recognize_tracks(tracks_path):
         results.extend(batch)
         self.update_state(
             state="PROCESSING",
             meta={"progress": 50 + 50 * current / total},
         )
+    recognition_duration = round(time.monotonic() - recognition_start, 2)
+
+    track_dirs = list(tracks_path.glob("track_*"))
+    tracks_count = len(track_dirs)
+    crops_count = sum(
+        len(list((track_dir / "images").glob("*.jpg")))
+        for track_dir in track_dirs
+    )
 
     csv_path = Path(
         video_path_str.replace(".mp4", ".csv").replace(UPLOAD_DIR, RESULT_DIR)
@@ -68,8 +91,14 @@ def process_video(self, video_path_str: str):
 
     duration = round(time.monotonic() - pipeline_start, 2)
     logger.info("pipeline.done", extra={
-        "video": video_path.name, "duration_sec": duration,
-        "tracks_processed": len(results), "csv": str(csv_path),
+        "video": video_path.name,
+        "tracking_duration_sec": tracking_duration,
+        "recognition_duration_sec": recognition_duration,
+        "duration_sec": duration,
+        "tracks_count": tracks_count,
+        "crops_count": crops_count,
+        "tracks_processed": len(results),
+        "csv": str(csv_path),
     })
 
     return {"csv_path": str(csv_path)}
