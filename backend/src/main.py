@@ -12,6 +12,10 @@ os.makedirs(RESULT_DIR, exist_ok=True)
 app = FastAPI(root_path="/api")
 Instrumentator().instrument(app).expose(app)
 
+@app.get("/health", tags=["health"])
+async def health_check():
+    return {"status": "ok"}
+
 @app.post("/upload")
 async def upload_video(file: UploadFile):
     # Сохраняем загруженное видео

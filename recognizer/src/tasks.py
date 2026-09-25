@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from .celery_app import celery_app
-from .config import RESULT_DIR, UPLOAD_DIR
+from .config import RESULT_DIR, UPLOAD_DIR, YOLO_MODEL
 from .recognizer import recognize_tracks, save_to_csv
 from .tracker import process_tracking
 
@@ -42,8 +42,7 @@ def process_video(self, video_path_str: str):
         source_path=video_path,
         output_path=tracks_path,
         frame_interval=2,
-        repo_id="openfoodfacts/price-tag-detection",
-        repo_filename="weights/best.pt",
+        model_path=YOLO_MODEL
     ):
         self.update_state(
             state="PROCESSING",

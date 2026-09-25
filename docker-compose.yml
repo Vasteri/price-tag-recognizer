@@ -13,7 +13,8 @@ services:
       retries: 3
     restart: always
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   redis:
     image: redis:${REDIS_VERSION}
@@ -29,7 +30,10 @@ services:
     volumes:
       - shared_volume:/shared
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      - CELERY_NAME=${CELERY_NAME}
+      - REDIS_URL=${REDIS_URL}
+      - UPLOAD_DIR=${UPLOAD_DIR}
+      - RESULT_DIR=${RESULT_DIR}
     depends_on:
       - redis
 
@@ -39,9 +43,16 @@ services:
       dockerfile: Dockerfile
     volumes:
       - shared_volume:/shared
+      - ./models:/models:ro
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      - CELERY_NAME=${CELERY_NAME}
+      - REDIS_URL=${REDIS_URL}
+      - UPLOAD_DIR=${UPLOAD_DIR}
+      - RESULT_DIR=${RESULT_DIR}
+      - LLM_BASE_URL=${LLM_BASE_URL}
       - LLM_MODEL=${LLM_MODEL}
+      - ENABLE_OCR=${ENABLE_OCR}
+      - YOLO_MODEL=${YOLO_MODEL}
     deploy:
       resources:
         reservations:
