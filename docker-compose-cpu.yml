@@ -94,7 +94,7 @@ services:
 
   flower:
     image: mher/flower:${FLOWER_VERSION}
-    command: celery --broker=redis://redis:6379/0 flower --port=5555 --url_prefix=/flower
+    command: celery --broker=${REDIS_URL} flower --port=5555 --url_prefix=/flower
     volumes:
       - flower_data:/data
     profiles:
