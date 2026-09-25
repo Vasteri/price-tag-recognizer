@@ -22,7 +22,6 @@
 - [Пайплайн обработки](#пайплайн-обработки)
 - [Инфраструктура](#инфраструктура)
   - [Сервисы](#сервисы)
-  - [Переменные окружения](#переменные-окружения)
   - [Профили](#профили)
   - [Тома и данные](#тома-и-данные)
 - [Структура проекта](#структура-проекта)
@@ -81,7 +80,7 @@ CSV Export
 - **Docker** ≥ 24 и **Docker Compose** v2
 - **NVIDIA GPU** с драйвером от CUDA 13.0 и установленным `nvidia-container-toolkit` (для GPU-режима)
 - ~8 ГБ свободной оперативной памяти
-- ~10 ГБ дискового пространства под образы и модели
+- ~20 ГБ дискового пространства под образы и модели
 - **bash**, **curl**/**wget** — для запуска `scripts/linux/install_model.sh`
 - **PowerShell** ≥ 5.1 — для запуска `scripts/windows/install_model.ps1`
 
@@ -99,11 +98,11 @@ cd price-tag-recognizer
 cp .env.example .env
 ```
 
-Файл .env.example уже содержит все необходимые переменные с разумными значениями по умолчанию — для локального запуска менять ничего не нужно.
+Файл .env.example уже содержит все необходимые переменные с разумными значениями по умолчанию. Если хотите запустить без мониторинга, то закомментируйте последнюю строку.
 
 ### 3. Загрузка моделей
 
-Модели Qwen3-VL-2B и mmproj скачиваются автоматически:
+Модели Qwen3-VL-2B, mmproj-Qwen3 и yolo-price-tag-detection скачиваются автоматически:
 
 **Linux / macOS:**
 ```bash
@@ -120,7 +119,8 @@ powershell -ExecutionPolicy Bypass -File scripts\windows\install_model.ps1
 ```
 models/
 ├── Qwen3-VL-2B-Instruct-Q4_K_M.gguf
-└── mmproj-Qwen3-VL-2B-Instruct-F16.gguf
+├── mmproj-Qwen3-VL-2B-Instruct-F16.gguf
+└── yolo-price-tag-detection.pt
 ```
 
 ### 4. Запуск
@@ -159,7 +159,7 @@ docker compose ps
 Пользователь отправляет видеофайл через API (`POST /recognize`). Файл сохраняется в `shared_volume` и получает `task_id`.
 
 **2. Извлечение кадров**
-OpenCV читает видео с пропуском кадров (`frame_skipping=2` по умолчанию). Каждый N-й кадр уходит дальше по пайплайну. Параметры (`fps`, `skip`, `max_frames`) настраиваются через API.
+OpenCV читает видео с пропуском кадров (`frame_skipping=2` по умолчанию). Каждый N-й кадр уходит дальше по пайплайну.
 
 **3. Детекция ценников (YOLOv11x)**
 Каждый кадр прогоняется через YOLO. На выходе — список bounding boxes с классами (`price_tag`, `barcode`, `qr` и т.д.). Отсекаются детекции с `confidence < threshold`.
@@ -224,18 +224,18 @@ OpenCV читает видео с пропуском кадров (`frame_skippi
 
 ### Сервисы
 
-| Сервис | Образ / сборка | Назначение | Порт | Профиль |
-|---|---|---|---|---|
-| **nginx** | `nginx:1.29.5` | Reverse proxy, отдача статики frontend | `80` | — |
-| **redis** | `redis:alpine3.23` | Брокер сообщений Celery, кеш | `6379` (внутр.) | — |
-| **backend** | `./backend/` | FastAPI, API, постановка задач в Celery | `8000` (внутр.) | — |
-| **worker** | `./recognizer/` | Celery worker, обработка задач распознавания | — | — |
-| **llama-cpp-server** | `ghcr.io/ggml-org/llama.cpp:server-cuda13` | Инференс Qwen3-VL-2B (GPU) | `8000` (внутр.) | — |
-| **flower** | `mher/flower:2.0.1` | UI мониторинга Celery | `5555` → `/flower` | `monitoring` |
-| **prometheus** | `prom/prometheus:v2.50.1` | Сбор метрик | `9090` (внутр.) | `monitoring` |
-| **promtail** | `grafana/promtail:3.6.11` | Сбор логов из Docker | — | `monitoring` |
-| **loki** | `grafana/loki:3.7.2` | Хранилище логов | `3100` (внутр.) | `monitoring` |
-| **grafana** | `grafana/grafana:10.4.0` | Визуализация метрик и логов | `3000` → `/grafana` | `monitoring` |
+| Сервис | Образ / сборка | Назначение | Профиль |
+|---|---|---|---|
+| **nginx** | `nginx:1.29.5` | Reverse proxy, отдача статики frontend | — |
+| **redis** | `redis:alpine3.23` | Брокер сообщений Celery, кеш | — |
+| **backend** | `./backend/` | FastAPI, API, постановка задач в Celery | — |
+| **worker** | `./recognizer/` | Celery worker, обработка задач распознавания | — |
+| **llama-cpp-server** | `ghcr.io/ggml-org/llama.cpp:server-cuda13` | Инференс Qwen3-VL-2B (GPU) | — |
+| **flower** | `mher/flower:2.0.1` | UI мониторинга Celery | `monitoring` |
+| **prometheus** | `prom/prometheus:v2.50.1` | Сбор метрик | `monitoring` |
+| **promtail** | `grafana/promtail:3.6.11` | Сбор логов из Docker | `monitoring` |
+| **loki** | `grafana/loki:3.7.2` | Хранилище логов | `monitoring` |
+| **grafana** | `grafana/grafana:10.4.0` | Визуализация метрик и логов | `monitoring` |
 
 **Особенности сервисов:**
 
@@ -245,20 +245,6 @@ OpenCV читает видео с пропуском кадров (`frame_skippi
 - **worker** также запрашивает GPU-ресурсы, так как выполняет inference YOLO и VLM.
 - **healthcheck** настроен для `redis`, `backend`, `llama-cpp-server` и `nginx`.
 - **Логирование** ограничено 10 МБ на файл, максимум 3 файла (json-file driver).
-
-### Переменные окружения
-
-Все настраиваемые параметры вынесены в `.env`. Основные группы:
-
-| Переменная | Описание | Пример |
-|---|---|---|
-| `NGINX_PORT` | Внешний порт Nginx | `80` |
-| `MODEL_PATH` | Путь к GGUF-модели Qwen3-VL | `/models/Qwen3-VL-2B-Instruct-Q4_K_M.gguf` |
-| `MMPROJ_PATH` | Путь к mmproj-файлу | `/models/mmproj-Qwen3-VL-2B-Instruct-F16.gguf` |
-| `CONTEXT_SIZE` | Размер контекста LLM | `65535` |
-| `GPU_LAYERS` | Количество слоёв на GPU | `99` |
-| `CELERY_BROKER_URL` | URL брокера Celery | `redis://redis:6379/0` |
-| `COMPOSE_PROFILES` | Профили по умолчанию | `monitoring` |
 
 ### Профили
 
