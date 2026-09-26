@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Распознавание кропа ценника</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container inspector">
+        <header class="header">
+            <h1>🖼️ Распознавание кропа</h1>
+            <p>Загрузите изображение ценника и получите структурированный результат VLM</p>
+            <nav class="service-nav" aria-label="Режим распознавания">
+                <a class="service-nav-link" href="/">Видео</a>
+                <a class="service-nav-link active" href="/crop.html">Один кроп</a>
+            </nav>
+        </header>
+
+        <main class="main-content">
+            <section class="upload-card" id="uploadCard">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-icon">📁</div>
+                    <div class="drop-zone-text">Перетащите изображение сюда или <span class="browse-link">выберите файл</span></div>
+                    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden>
+                    <div class="file-info" id="fileInfo"></div>
+                </div>
+                <button class="upload-btn" id="uploadBtn" disabled>Распознать ценник</button>
+            </section>
+
+            <section class="progress-card crop-progress hidden" id="progressCard">
+                <div class="task-id-container">
+                    <span class="task-label">ID задачи:</span>
+                    <span class="task-id" id="taskId"></span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-status" id="progressStatus">Ожидание начала...</div>
+            </section>
+
+            <section class="crop-result hidden" id="resultSection">
+                <div class="crop-layout">
+                    <div class="preview-card">
+                        <img class="crop-preview" id="cropPreview" alt="Загруженный ценник">
+                    </div>
+                    <div class="result-column">
+                        <article class="recognition-card">
+                            <h2 class="card-heading">Результат распознавания</h2>
+                            <div class="recognition-fields" id="recognitionFields"></div>
+                        </article>
+                        <article class="qr-card">
+                            <h2 class="card-heading">QR-коды</h2>
+                            <div class="qr-placeholder" id="qrResult">Детекция QR будет добавлена позже.</div>
+                        </article>
+                    </div>
+                </div>
+                <div class="result-actions">
+                    <button class="reset-btn" id="resetBtn">➕ Загрузить другой кроп</button>
+                </div>
+            </section>
+
+            <div class="error-message hidden" id="errorMessage">
+                <span>⚠️</span> <span id="errorText"></span>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>JPEG, PNG или WebP. Максимальный размер: 20 МБ.</p>
+        </footer>
+    </div>
+
+    <script src="crop.js"></script>
+</body>
+</html>
