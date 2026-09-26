@@ -4,13 +4,20 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-RUN pip install paddlepaddle -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+RUN pip install --no-cache-dir paddlepaddle -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./src/download_model.py .
-RUN python download_model.py
+# В образе ultralytics уже есть пользователь с uid 1000
+# RUN addgroup -g 1000 -S app \
+#     && adduser  -u 1000 -S -G app -s /sbin/nologin -h /app app
+RUN mkdir -p /shared/uploads /shared/results \
+    && chown -R 1000:1000 /shared /app
+USER 1000:1000
 
-COPY ./src ./src
-COPY ./assets ./assets
+COPY --chown=1000:1000 ./src ./src
+COPY --chown=1000:1000 ./assets ./assets
+
+HEALTHCHECK --interval=60s --timeout=10s --start-period=15s --retries=3 \
+  CMD celery -A src.tasks inspect ping -d celery@$HOSTNAME || exit 1
 
 CMD ["celery", "-A", "src.tasks", "worker", "--loglevel=info", "-Q", "recognizer"]

@@ -8,3 +8,6 @@ wget -O "$MODEL_DIR/Qwen3-VL-2B-Instruct-Q4_K_M.gguf" \
 
 wget -O "$MODEL_DIR/mmproj-Qwen3-VL-2B-Instruct-F16.gguf" \
   https://huggingface.co/lmstudio-community/Qwen3-VL-2B-Instruct-GGUF/resolve/main/mmproj-Qwen3-VL-2B-Instruct-F16.gguf
+
+wget -O "$MODEL_DIR/yolo-price-tag-detection.pt" \
+  https://huggingface.co/openfoodfacts/price-tag-detection/resolve/main/weights/best.pt

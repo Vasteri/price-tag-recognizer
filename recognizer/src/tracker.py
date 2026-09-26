@@ -2,7 +2,7 @@
 Скрипт для автоматического детектирования и трекинга объектов (ценников) в видеопотоке.
 
 Модулем осуществляется:
-1. Загрузка предобученной модели YOLO с Hugging Face Hub.
+1. теперь только локальная модель yolo --Загрузка предобученной модели YOLO с Hugging Face Hub.
 2. Покадровая обработка видео с возможностью пропуска кадров (frame_interval).
 3. Поворот кадра на 90 градусов против часовой стрелки перед обработкой.
 4. Трекинг объектов (присвоение уникальных ID) с помощью встроенных алгоритмов Ultralytics.
@@ -24,24 +24,15 @@ import os
 import cv2
 import json
 from time import time
-from huggingface_hub import hf_hub_download
 from ultralytics import YOLO
 
 
 def process_tracking(
     # обязательные параметры
     source_path, output_path, frame_interval,
-    # либо модель с Hugging Face
-    repo_id=None, repo_filename=None,
-    # либо локальная модель
+    # локальная модель
     model_path=None,
     ):
-    if model_path is None:
-        model_path = hf_hub_download(
-            repo_id=repo_id,
-            filename=repo_filename,
-            cache_dir="/hf_cache"
-        )
 
     model = YOLO(model_path)
     cap = cv2.VideoCapture(source_path)

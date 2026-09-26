@@ -1,7 +1,6 @@
 openai
 celery
 dotenv
-huggingface_hub
 redis
 lap
 paddleocr
