@@ -34,7 +34,10 @@ class JsonFormatter(logging.Formatter):
 
 _handler = logging.StreamHandler()
 _handler.setFormatter(JsonFormatter())
-logging.basicConfig(level=logging.INFO, handlers=[_handler])
+_package_logger = logging.getLogger(__package__)
+_package_logger.addHandler(_handler)
+_package_logger.setLevel(logging.INFO)
+_package_logger.propagate = False
 
 logger = logging.getLogger(__name__)
 
