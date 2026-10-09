@@ -33,3 +33,4 @@ uuid==1.30
 uvicorn==0.46.0
 vine==5.1.0
 wcwidth==0.7.0
+aiofiles
