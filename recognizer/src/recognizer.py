@@ -4,13 +4,14 @@ import json
 import logging
 import random
 import time
+import tempfile
 from pathlib import Path
 import re
 
 import cv2
 import numpy as np
 from openai import OpenAI
-from PIL import Image
+from PIL import Image, ImageOps
 
 from .config import ENABLE_OCR, LLM_BASE_URL, LLM_MODEL
 
@@ -107,6 +108,37 @@ def _sample_crops(track_dir: Path, n: int) -> list[Path]:
     return images[:n]
 
 
+def recognize_image(image_path: Path) -> dict:
+    """Recognize an uploaded image using the existing OCR and VLM services."""
+    with Image.open(image_path) as source:
+        image = ImageOps.exif_transpose(source).convert("RGB")
+
+    ocr_hint = None
+    if ENABLE_OCR == "true":
+        results = OCRService().predict([np.array(image)])
+        if results:
+            ocr_hint = results[0].texts or None
+
+    # The VLM request expects JPEG; normalize PNG/WebP and EXIF orientation.
+    with tempfile.TemporaryDirectory(prefix="price-tag-crop-") as directory:
+        normalized_path = Path(directory) / "crop.jpg"
+        image.save(normalized_path, format="JPEG", quality=95)
+        with OpenAI(base_url=LLM_BASE_URL, api_key="none") as client:
+            return _recognize_crop(client, normalized_path, ocr_hint)
+
+
+def _parse_vlm_response(raw: str) -> dict:
+    """Accept a JSON object, optionally inside a complete Markdown fence."""
+    text = raw.strip()
+    fenced = re.fullmatch(r"```(?:json)?\s*\n(.*?)\n?```", text, flags=re.DOTALL | re.IGNORECASE)
+    if fenced:
+        text = fenced.group(1).strip()
+    result = json.loads(text)
+    if not isinstance(result, dict):
+        raise ValueError("Expected a JSON object")
+    return result
+
+
 def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
     start = time.monotonic()
     has_ocr_hint = ocr_predict is not None
@@ -165,25 +197,43 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
             logger.warning("vlm.response", extra={"image": image_path.name, "latency": latency, "status": "no_choices"})
             return EMPTY_RESULT
 
-        raw = response.choices[0].message.content.strip()
-        if raw[:3] == "```":
-            raw = raw[7:-3]
+        choice = response.choices[0]
+        raw = choice.message.content
+        finish_reason = choice.finish_reason
+        if not isinstance(raw, str) or not raw.strip():
+            logger.warning("vlm.empty_response", extra={
+                "image": image_path.name, "latency": latency,
+                "finish_reason": finish_reason, "response": raw,
+            })
+            return EMPTY_RESULT
+
+        if finish_reason == "length":
+            logger.warning("vlm.truncated_response", extra={
+                "image": image_path.name, "latency": latency,
+                "finish_reason": finish_reason, "response": raw,
+            })
+
         try:
-            result = json.loads(raw)
+            result = _parse_vlm_response(raw)
             fields_count = sum(1 for v in result.values() if v is not None)
             fields_ratio = round(fields_count / len(RECOGNIZED_FIELDS), 3)
             logger.info("vlm.response", extra={
                 "image": image_path.name, "latency": latency, "status": "ok",
+                "finish_reason": finish_reason,
                 "fields_count": fields_count, "fields_ratio": fields_ratio,
             })
             return result
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, ValueError) as exc:
             logger.warning(
-                f"vlm.parse_error {raw}",
+                "vlm.parse_error",
                 extra={
                     "image": image_path.name,
                     "latency": latency,
                     "response": raw,
+                    "finish_reason": finish_reason,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                    "error_position": getattr(exc, "pos", None),
                 },
             )
             return EMPTY_RESULT
