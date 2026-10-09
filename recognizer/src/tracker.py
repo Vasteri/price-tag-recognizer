@@ -20,10 +20,11 @@ output_dir/
 │   └── ...
 """
 
-import os
-import cv2
 import json
+import os
 from time import time
+
+import cv2
 from ultralytics import YOLO
 
 
@@ -38,7 +39,7 @@ def process_tracking(
     cap = cv2.VideoCapture(source_path)
 
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    # h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) # unused???
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     if not os.path.exists(output_path):
@@ -73,7 +74,7 @@ def process_tracking(
 
             for box, track_id in zip(boxes, track_ids):
                 track_path = os.path.join(output_path, f"track_{track_id}")
-                image_path = os.path.join(track_path, f"images")
+                image_path = os.path.join(track_path, "images")
 
                 if track_id not in known_tracks:
                     known_tracks.append(track_id)

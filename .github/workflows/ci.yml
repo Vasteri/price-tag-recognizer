@@ -22,3 +22,18 @@ jobs:
 
       - name: Ruff check
         run: ruff check backend/src
+
+      - name: Ruff check (worker)
+        run: ruff check recognizer/src
+
+  compose-validate:
+    name: Validate docker-compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env from example
+        run: cp .env.example .env
+
+      - name: Validate
+        run: docker compose config > /dev/null

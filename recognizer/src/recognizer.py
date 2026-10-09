@@ -5,9 +5,7 @@ import logging
 import random
 import time
 from pathlib import Path
-import re
 
-import cv2
 import numpy as np
 from openai import OpenAI
 from PIL import Image

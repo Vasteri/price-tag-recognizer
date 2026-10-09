@@ -1,9 +1,7 @@
-from collections import Counter, defaultdict
-from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
-import numpy as np
 from paddleocr import PaddleOCR
+
 #from pyzbar import pyzbar
 
 
@@ -17,8 +15,8 @@ class OCRResult:
         confidences (List[float]): Соответствующий список коэффициентов уверенности модели.
     """
 
-    texts: List[str]
-    confidences: List[float]
+    texts: list[str]
+    confidences: list[float]
 
 
 class OCRService:
