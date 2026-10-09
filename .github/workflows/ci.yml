@@ -12,7 +12,7 @@ on:
 
 jobs:
   lint-backend:
-    name: Lint backend
+    name: Lint backend and worker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,10 +24,10 @@ jobs:
       - name: Install ruff
         run: pip install ruff
 
-      - name: Ruff check
+      - name: Ruff check backend
         run: ruff check backend/src
 
-      - name: Ruff check (worker)
+      - name: Ruff check worker
         run: ruff check recognizer/src
 
   compose-validate:
