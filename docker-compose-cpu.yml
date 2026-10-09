@@ -63,6 +63,9 @@ services:
       - LLM_MODEL=${LLM_MODEL}
       - ENABLE_OCR=${ENABLE_OCR}
       - YOLO_MODEL=${YOLO_MODEL}
+      - QR_MODEL=${QR_MODEL:-/models/qrdet-n.pt}
+      - QR_CONFIDENCE=${QR_CONFIDENCE:-0.5}
+      - QR_DEVICE=${QR_DEVICE:-cpu}
     # deploy:
     #   resources:
     #     reservations:

@@ -5,7 +5,8 @@ from pathlib import Path
 
 from .celery_app import celery_app
 from .config import RESULT_DIR, UPLOAD_DIR, YOLO_MODEL
-from .recognizer import recognize_tracks, save_to_csv
+from .recognizer import recognize_image, recognize_tracks, save_to_csv
+from .qr import detect_qr
 from .tracker import process_tracking
 
 
@@ -40,6 +41,25 @@ _package_logger.setLevel(logging.INFO)
 _package_logger.propagate = False
 
 logger = logging.getLogger(__name__)
+
+
+@celery_app.task(bind=True, name="recognizer.tasks.process_crop")
+def process_crop(self, image_path_str: str):
+    image_path = Path(image_path_str)
+    start = time.monotonic()
+    logger.info("crop.start", extra={"image": image_path.name})
+    self.update_state(state="PROCESSING", meta={"progress": 0})
+
+    qr_codes = detect_qr(image_path)
+    self.update_state(state="PROCESSING", meta={"progress": 25})
+    recognition = recognize_image(image_path)
+
+    logger.info("crop.done", extra={
+        "image": image_path.name,
+        "duration_sec": round(time.monotonic() - start, 3),
+        "qr_count": len(qr_codes),
+    })
+    return {"recognition": recognition, "qr_codes": qr_codes}
 
 
 @celery_app.task(bind=True, name="recognizer.tasks.process_video")

@@ -8,8 +8,8 @@ RUN pip install --no-cache-dir paddlepaddle -i https://www.paddlepaddle.org.cn/p
 RUN pip install --no-cache-dir -r requirements.txt
 
 # В образе ultralytics уже есть пользователь с uid 1000
-# RUN addgroup -g 1000 -S app \
-#     && adduser  -u 1000 -S -G app -s /sbin/nologin -h /app app
+RUN groupadd -g 1000 app \
+    && useradd -u 1000 -g 1000 -M -s /sbin/nologin app
 RUN mkdir -p /shared/uploads /shared/results \
     && chown -R 1000:1000 /shared /app
 USER 1000:1000

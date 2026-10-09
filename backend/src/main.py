@@ -1,8 +1,9 @@
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 import uuid
 import os
+from pathlib import Path
 
 from .config import UPLOAD_DIR, RESULT_DIR
 from .celery_app import celery_app
@@ -26,6 +27,47 @@ async def upload_video(file: UploadFile):
     
     task = celery_app.send_task('recognizer.tasks.process_video', args=[video_path], queue='recognizer')
     
+    return {"task_id": task.id, "status": "queued"}
+
+
+@app.post("/crop/upload")
+async def upload_crop(file: UploadFile):
+    extensions = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+    extension = extensions.get(file.content_type)
+    if extension is None:
+        await file.close()
+        raise HTTPException(415, "Поддерживаются только JPEG, PNG и WebP.")
+
+    image_path = Path(UPLOAD_DIR) / f"{uuid.uuid4()}{extension}"
+    try:
+        size = 0
+        with image_path.open("xb") as output:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > 20 * 1024 * 1024:
+                    raise HTTPException(413, "Изображение превышает 20 МБ.")
+                if size == len(chunk):
+                    valid_header = {
+                        "image/jpeg": chunk.startswith(b"\xff\xd8\xff"),
+                        "image/png": chunk.startswith(b"\x89PNG\r\n\x1a\n"),
+                        "image/webp": chunk.startswith(b"RIFF") and chunk[8:12] == b"WEBP",
+                    }[file.content_type]
+                    if not valid_header:
+                        raise HTTPException(415, "Содержимое файла не соответствует формату изображения.")
+                output.write(chunk)
+        if size == 0:
+            raise HTTPException(400, "Выбран пустой файл.")
+
+        # The worker will decode the image and perform OCR/VLM/QR recognition.
+        task = celery_app.send_task(
+            "recognizer.tasks.process_crop", args=[str(image_path)], queue="recognizer"
+        )
+    except Exception:
+        image_path.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
+
     return {"task_id": task.id, "status": "queued"}
 
 @app.get("/status/{task_id}")

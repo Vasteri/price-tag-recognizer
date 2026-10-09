@@ -11,3 +11,6 @@ wget -O "$MODEL_DIR/mmproj-Qwen3-VL-2B-Instruct-F16.gguf" \
 
 wget -O "$MODEL_DIR/yolo-price-tag-detection.pt" \
   https://huggingface.co/openfoodfacts/price-tag-detection/resolve/main/weights/best.pt
+
+wget -O "$MODEL_DIR/qrdet-n.pt" \
+  https://github.com/Eric-Canas/qrdet/releases/download/v2.0_release/qrdet-n.pt
