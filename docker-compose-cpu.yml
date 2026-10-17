@@ -100,6 +100,7 @@ services:
       --mmproj ${MMPROJ_PATH}
       --jinja
       -c ${CONTEXT_SIZE}
+      --parallel ${LLAMA_PARALLEL:-2}
       --image-min-tokens ${IMAGE_MIN_TOKENS}
       --port 8000
       --host 0.0.0.0
