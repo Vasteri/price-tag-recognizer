@@ -1,0 +1,33 @@
+name: price-tag-dataset
+
+x-dataset: &dataset
+  working_dir: /workspace
+  user: "${DATASET_UID:-1000}:${DATASET_GID:-1000}"
+  environment:
+    PYTHONUNBUFFERED: "1"
+    YOLO_CONFIG_DIR: /tmp/ultralytics
+    MPLCONFIGDIR: /tmp/matplotlib
+  volumes:
+    - ./scripts/build_video_dataset.py:/app/build_video_dataset.py:ro
+    - ./models:/models:ro
+    - ./videos:/videos:ro
+    - ./datasets:/datasets
+  entrypoint: ["python", "/app/build_video_dataset.py"]
+  command: ["--help"]
+
+services:
+  dataset:
+    <<: *dataset
+    image: ultralytics/ultralytics:8.4.51-cpu
+
+  dataset-gpu:
+    <<: *dataset
+    image: ultralytics/ultralytics:8.4.51
+    profiles: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
