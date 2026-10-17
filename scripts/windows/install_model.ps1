@@ -18,3 +18,6 @@ Write-Host "Downloading mmproj-Qwen3-VL-2B..."
 Invoke-WebRequest -Uri $url2 -OutFile $outFile2
 Write-Host "Downloading yolo..."
 Invoke-WebRequest -Uri $url3 -OutFile $outFile3
+
+Write-Host "Downloading QRDet nano..."
+Invoke-WebRequest -Uri "https://github.com/Eric-Canas/qrdet/releases/download/v2.0_release/qrdet-n.pt" -OutFile (Join-Path $modelDir "qrdet-n.pt")

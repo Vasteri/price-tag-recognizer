@@ -63,6 +63,9 @@ services:
       - LLM_MODEL=${LLM_MODEL}
       - ENABLE_OCR=${ENABLE_OCR}
       - YOLO_MODEL=${YOLO_MODEL}
+      - QR_MODEL=${QR_MODEL:-/models/qrdet-n.pt}
+      - QR_CONFIDENCE=${QR_CONFIDENCE:-0.5}
+      - QR_DEVICE=${QR_DEVICE:-cpu}
     # deploy:
     #   resources:
     #     reservations:
@@ -97,6 +100,7 @@ services:
       --mmproj ${MMPROJ_PATH}
       --jinja
       -c ${CONTEXT_SIZE}
+      --parallel ${LLAMA_PARALLEL:-2}
       --image-min-tokens ${IMAGE_MIN_TOKENS}
       --port 8000
       --host 0.0.0.0

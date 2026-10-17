@@ -40,6 +40,7 @@ def process_tracking(
 
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     # h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) # unused???
+
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     if not os.path.exists(output_path):
