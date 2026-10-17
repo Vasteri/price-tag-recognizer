@@ -5,8 +5,8 @@ from pathlib import Path
 
 from .celery_app import celery_app
 from .config import RESULT_DIR, UPLOAD_DIR, YOLO_MODEL
-from .recognizer import recognize_image, recognize_tracks, save_to_csv
 from .qr import detect_qr
+from .recognizer import recognize_image, recognize_tracks, save_to_csv
 from .tracker import process_tracking
 
 

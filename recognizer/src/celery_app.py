@@ -1,5 +1,6 @@
 from celery import Celery
-from .config import REDIS_URL, CELERY_NAME
+
+from .config import CELERY_NAME, REDIS_URL
 
 celery_app = Celery(
     CELERY_NAME,

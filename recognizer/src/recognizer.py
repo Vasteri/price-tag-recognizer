@@ -3,16 +3,15 @@ import csv
 import json
 import logging
 import random
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import time
-import tempfile
-from pathlib import Path
 import re
+import tempfile
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
-import cv2
 import numpy as np
-from openai import OpenAI
+from openai import APIError, OpenAI
 from PIL import Image, ImageOps
 
 from .config import ENABLE_OCR, LLM_BASE_URL, LLM_MODEL
@@ -193,8 +192,23 @@ def _parse_vlm_response(raw: str) -> dict:
         text = fenced.group(1).strip()
     result = json.loads(text)
     if not isinstance(result, dict):
-        raise ValueError("Expected a JSON object")
-    return result
+        raise TypeError("Expected a JSON object")
+
+    unknown_fields = result.keys() - set(RECOGNIZED_FIELDS)
+    if unknown_fields:
+        raise ValueError(f"Unexpected fields: {', '.join(sorted(unknown_fields))}")
+
+    price_fields = {"price_default", "price_card", "price_discount"}
+    for field, value in result.items():
+        if value is None:
+            continue
+        if field in price_fields:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise TypeError(f"Expected a number or null for {field}")
+        elif not isinstance(value, str):
+            raise TypeError(f"Expected a string or null for {field}")
+
+    return {**EMPTY_RESULT, **result}
 
 
 def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
@@ -253,7 +267,7 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
 
         if not response.choices:
             logger.warning("vlm.response", extra={"image": image_path.name, "latency": latency, "status": "no_choices"})
-            return EMPTY_RESULT
+            return EMPTY_RESULT.copy()
 
         choice = response.choices[0]
         raw = choice.message.content
@@ -263,7 +277,7 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
                 "image": image_path.name, "latency": latency,
                 "finish_reason": finish_reason, "response": raw,
             })
-            return EMPTY_RESULT
+            return EMPTY_RESULT.copy()
 
         if finish_reason == "length":
             logger.warning("vlm.truncated_response", extra={
@@ -278,10 +292,11 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
             logger.info("vlm.response", extra={
                 "image": image_path.name, "latency": latency, "status": "ok",
                 "finish_reason": finish_reason,
+                "truncated": finish_reason == "length",
                 "fields_count": fields_count, "fields_ratio": fields_ratio,
             })
             return result
-        except (json.JSONDecodeError, ValueError) as exc:
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
             logger.warning(
                 "vlm.parse_error",
                 extra={
@@ -294,12 +309,15 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
                     "error_position": getattr(exc, "pos", None),
                 },
             )
-            return EMPTY_RESULT
+            return EMPTY_RESULT.copy()
 
-    except Exception as exc:
+    except APIError as exc:
         latency = round(time.monotonic() - start, 3)
-        logger.error("vlm.exception", extra={"image": image_path.name, "latency": latency, "error": str(exc)})
-        return EMPTY_RESULT
+        logger.exception("vlm.exception", extra={
+            "image": image_path.name, "latency": latency,
+            "error": str(exc), "error_type": type(exc).__name__,
+        })
+        return EMPTY_RESULT.copy()
 
 
 def recognize_tracks(tracks_path: Path, crops_per_track: int = 5,
