@@ -4,5 +4,6 @@ venv
 __pycache__
 videos
 models/*
+.ruff_cache
 
 recognizer/exp_data

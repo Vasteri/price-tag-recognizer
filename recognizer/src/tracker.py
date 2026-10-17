@@ -39,6 +39,7 @@ def process_tracking(
     cap = cv2.VideoCapture(source_path)
 
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    # h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) # unused???
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 

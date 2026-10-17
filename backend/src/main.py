@@ -1,12 +1,14 @@
+import os
+import uuid
+from pathlib import Path
+
+import aiofiles
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from prometheus_fastapi_instrumentator import Instrumentator
-import uuid
-import os
-from pathlib import Path
 
-from .config import UPLOAD_DIR, RESULT_DIR
 from .celery_app import celery_app
+from .config import RESULT_DIR, UPLOAD_DIR
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(RESULT_DIR, exist_ok=True)
@@ -22,8 +24,9 @@ async def upload_video(file: UploadFile):
     # Сохраняем загруженное видео
     video_id = str(uuid.uuid4())
     video_path = f"{UPLOAD_DIR}/{video_id}.mp4"
-    with open(video_path, "wb") as f:
-        f.write(await file.read())
+    async with aiofiles.open(video_path, "wb") as f:
+        while chunk := await file.read(1024 * 1024):
+            await f.write(chunk)
     
     task = celery_app.send_task('recognizer.tasks.process_video', args=[video_path], queue='recognizer')
     
