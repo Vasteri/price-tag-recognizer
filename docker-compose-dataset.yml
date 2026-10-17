@@ -4,8 +4,11 @@ x-dataset: &dataset
   working_dir: /workspace
   user: "${DATASET_UID:-1000}:${DATASET_GID:-1000}"
   environment:
+    HOME: /tmp
+    USER: dataset
+    LOGNAME: dataset
     PYTHONUNBUFFERED: "1"
-    YOLO_CONFIG_DIR: /tmp/ultralytics
+    YOLO_CONFIG_DIR: /tmp
     MPLCONFIGDIR: /tmp/matplotlib
   volumes:
     - ./scripts/build_video_dataset.py:/app/build_video_dataset.py:ro

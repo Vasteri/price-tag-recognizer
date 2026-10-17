@@ -27,6 +27,8 @@ DATASET_UID=$(id -u) DATASET_GID=$(id -g) \
 
 CSV и кропы появятся на хосте в `datasets/video-01/`. Создайте `datasets/` до запуска, чтобы Docker не создал директорию от root. `DATASET_UID` и `DATASET_GID` задают владельца выходных файлов; по умолчанию используются 1000:1000.
 
+Compose задаёт `HOME=/tmp` и имя пользователя через `USER`/`LOGNAME`: числового UID хоста может не быть в `/etc/passwd` контейнера. Это позволяет библиотекам определять домашнюю директорию и имя пользователя без ошибки `getpwuid(): uid not found`.
+
 Для NVIDIA GPU (нужен NVIDIA Container Toolkit):
 
 ```bash
