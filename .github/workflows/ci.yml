@@ -2,9 +2,8 @@ name: CI
 
 on:
   pull_request:
-    branches: [feature/ci-cd]
-  push:
-    branches: [feature/ci-cd]
+    branches: [feature/ci-cd, main]
+  workflow_dispatch:
 
 # env:
 #   REGISTRY: ghcr.io
