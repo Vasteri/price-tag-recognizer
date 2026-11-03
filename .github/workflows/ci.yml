@@ -2,14 +2,14 @@ name: CI
 
 on:
   pull_request:
-    branches: [feature/ci-cd, main, develop]
+    branches: [main, develop]
   push:
-    branches: [feature/ci-cd, develop]
+    branches: [main, develop, feature/ci-cd]
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository }}
+  IMAGE_NAMESPACE: ${{ github.repository }}   # Vasteri/price-tag-recognizer
 
 jobs:
   lint-backend:
@@ -60,6 +60,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Приводим owner/repo к нижнему регистру — Docker требует lowercase
+      - name: Normalize image namespace
+        id: lower_owner_repo
+        run: echo "value=$(echo '${{ env.IMAGE_NAMESPACE }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
@@ -74,7 +79,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/price-tag-recognizer-${{ matrix.service }}
+          images: ${{ env.REGISTRY }}/${{ steps.lower_owner_repo.outputs.value }}/${{ matrix.service }}
           tags: |
             type=ref,event=branch
             type=sha,prefix=sha-,format=short
@@ -94,7 +99,7 @@ jobs:
       - name: Trivy scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/price-tag-recognizer-${{ matrix.service }}:sha-${{ github.sha }}
+          image-ref: ${{ env.REGISTRY }}/${{ steps.lower_owner_repo.outputs.value }}/${{ matrix.service }}:${{ steps.meta.outputs.version }}
           format: table
           exit-code: "1"
           severity: CRITICAL,HIGH
