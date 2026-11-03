@@ -55,8 +55,8 @@ jobs:
         include:
           - service: backend
             context: ./backend
-          # - service: worker
-          #   context: ./recognizer
+          - service: worker
+            context: ./recognizer
     steps:
       - uses: actions/checkout@v4
 
