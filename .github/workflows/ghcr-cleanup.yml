@@ -1,0 +1,20 @@
+name: GHCR Cleanup
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"   # каждое воскресенье в 03:00 UTC
+  workflow_dispatch: 
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: snok/container-retention-policy@v3.1.0
+        with:
+          account: user
+          token: ${{ secrets.PAT }}
+          image-names: "price-tag-recognizer/*"
+          image-tags: "!latest"
+          cut-off: 4w
+          keep-n-most-recent: 3
+          dry-run: false
