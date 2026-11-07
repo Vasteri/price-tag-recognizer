@@ -80,6 +80,11 @@ def get_status(task_id: str):
         response = {'state': 'PENDING', 'progress': 0}
     elif task.state == 'PROCESSING':
         response = {'state': 'PROCESSING', 'progress': task.info.get('progress', 0)}
+    elif task.state in {'FAILURE', 'REVOKED'}:
+        response = {
+            'state': task.state,
+            'result': str(task.result) or 'Обработка задачи прервана.',
+        }
     else:
         response = {'state': task.state, 'result': task.result}
     return response

@@ -181,7 +181,7 @@ def recognize_image(image_path: Path) -> dict:
         normalized_path = Path(directory) / "crop.jpg"
         image.save(normalized_path, format="JPEG", quality=95)
         with OpenAI(base_url=LLM_BASE_URL, api_key="none") as client:
-            return _recognize_crop(client, normalized_path, ocr_hint)
+            return _recognize_crop(client, normalized_path, ocr_hint, strict=True)
 
 
 def _parse_vlm_response(raw: str) -> dict:
@@ -211,7 +211,7 @@ def _parse_vlm_response(raw: str) -> dict:
     return {**EMPTY_RESULT, **result}
 
 
-def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
+def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None, *, strict=False) -> dict:
     start = time.monotonic()
     has_ocr_hint = ocr_predict is not None
     logger.info("vlm.request", extra={"image": image_path.name, "ocr_hint": has_ocr_hint})
@@ -267,6 +267,8 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
 
         if not response.choices:
             logger.warning("vlm.response", extra={"image": image_path.name, "latency": latency, "status": "no_choices"})
+            if strict:
+                raise ValueError("Модель распознавания не вернула ответ. Повторите обработку.")
             return EMPTY_RESULT.copy()
 
         choice = response.choices[0]
@@ -277,6 +279,8 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
                 "image": image_path.name, "latency": latency,
                 "finish_reason": finish_reason, "response": raw,
             })
+            if strict:
+                raise ValueError("Модель распознавания вернула пустой ответ. Повторите обработку.")
             return EMPTY_RESULT.copy()
 
         if finish_reason == "length":
@@ -309,6 +313,8 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
                     "error_position": getattr(exc, "pos", None),
                 },
             )
+            if strict:
+                raise ValueError("Не удалось разобрать ответ модели распознавания. Повторите обработку.") from exc
             return EMPTY_RESULT.copy()
 
     except APIError as exc:
@@ -317,6 +323,8 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None) -> dict:
             "image": image_path.name, "latency": latency,
             "error": str(exc), "error_type": type(exc).__name__,
         })
+        if strict:
+            raise RuntimeError("Сервис распознавания недоступен или вернул ошибку. Повторите обработку позже.") from exc
         return EMPTY_RESULT.copy()
 
 
