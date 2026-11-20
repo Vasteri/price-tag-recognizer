@@ -13,5 +13,5 @@ class TaskQueuedResponse(BaseModel):
 
 class TaskStatusResponse(BaseModel):
     state: str
-    progress: int | None = None
+    progress: float | None = None
     result: Any = None
