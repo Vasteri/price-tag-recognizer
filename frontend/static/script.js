@@ -114,59 +114,67 @@ async function uploadVideo() {
         showError(err.message || 'Не удалось загрузить видео');
         uploadBtn.disabled = false;
         uploadBtn.innerText = 'Загрузить видео';
-        resetUploadUI();
     }
 }
 
 // Опрос статуса задачи
-function startPolling() {
-    if (pollingInterval) clearInterval(pollingInterval);
-    
-    pollingInterval = setInterval(async () => {
-        if (!currentTaskId) return;
-        
-        try {
-            const resp = await fetch(getStatusUrl(currentTaskId));
-            if (!resp.ok) {
-                if (resp.status === 404) {
-                    stopPolling();
-                    progressStatus.innerText = 'Задача не найдена';
-                }
-                return;
+async function pollStatus() {
+    const taskId = currentTaskId;
+    if (!taskId) return;
+
+    try {
+        const resp = await fetch(getStatusUrl(taskId));
+        if (!resp.ok) {
+            stopPolling();
+            if (resp.status === 404) {
+                progressStatus.innerText = 'Задача не найдена';
+            } else {
+                progressStatus.innerText = `Ошибка сервера: ${resp.status}`;
+                showError('Не удалось получить статус задачи.');
             }
-            
-            const data = await resp.json();
-            const state = data.state;
-            let progress = data.progress || 0;
-            
-            // progress от 0 до 10 от бэкенда → масштабируем в проценты
-            let percent = Math.min(100, Math.floor((progress / 100) * 100));
-            if (state === 'PROCESSING') {
-                progressFill.style.width = `${percent}%`;
-                progressStatus.innerText = `Обработка видео... ${percent}% (шаг ${progress}/100)`;
-            } else if (state === 'PENDING') {
-                progressFill.style.width = '0%';
-                progressStatus.innerText = 'Ожидание начала обработки...';
-            } else if (state === 'SUCCESS') {
-                // Задача завершена
-                stopPolling();
-                progressFill.style.width = '100%';
-                progressStatus.innerText = '✅ Распознавание завершено! Файл готов к скачиванию.';
-                downloadBtn.classList.remove('hidden');
-            } else if (state === 'FAILURE') {
-                stopPolling();
-                progressStatus.innerText = `❌ Ошибка: ${data.result || 'неизвестная ошибка'}`;
-                showError('Обработка видео не удалась. Попробуйте другой файл.');
-            }
-        } catch (err) {
-            console.warn('Polling error', err);
+            return;
         }
-    }, 2000); // опрос каждые 2 секунды
+
+        const data = await resp.json();
+        if (taskId !== currentTaskId) return;      // ответ от устаревшей задачи
+
+        const state = data.state;
+        const progress = Number(data.progress) || 0;
+        const percent = Math.max(0, Math.min(100, Math.floor(progress)));
+
+        if (state === 'PROCESSING') {
+            progressFill.style.width = `${percent}%`;
+            progressStatus.innerText = `Обработка видео... ${percent}% (шаг ${progress}/100)`;
+        } else if (state === 'PENDING') {
+            progressFill.style.width = '0%';
+            progressStatus.innerText = 'Ожидание начала обработки...';
+        } else if (state === 'SUCCESS') {
+            progressFill.style.width = '100%';
+            progressStatus.innerText = '✅ Распознавание завершено! Файл готов к скачиванию.';
+            downloadBtn.classList.remove('hidden');
+            return;                                 // больше не опрашиваем
+        } else if (state === 'FAILURE') {
+            progressStatus.innerText = `❌ Ошибка: ${data.result || 'неизвестная ошибка'}`;
+            showError('Обработка видео не удалась. Попробуйте другой файл.');
+            return;
+        }
+    } catch (err) {
+        console.warn('Polling error', err);
+    }
+
+    if (taskId === currentTaskId) {
+        pollingInterval = setTimeout(pollStatus, 2000);
+    }
+}
+
+function startPolling() {
+    stopPolling();
+    pollStatus();
 }
 
 function stopPolling() {
     if (pollingInterval) {
-        clearInterval(pollingInterval);
+        clearTimeout(pollingInterval);
         pollingInterval = null;
     }
 }

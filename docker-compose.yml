@@ -50,6 +50,7 @@ services:
     build: 
       context: ./recognizer
       dockerfile: Dockerfile
+    image: celery-worker:old-yolo
     volumes:
       - shared_volume:/shared
       - ./models:/models:ro
