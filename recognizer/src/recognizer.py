@@ -217,26 +217,21 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None, *, stric
     logger.info("vlm.request", extra={"image": image_path.name, "ocr_hint": has_ocr_hint})
 
     try:
-        content = []
-        content.append(
+        content = [
             {
                 "type": "text",
                 "text": "Ты — профессиональный распознаватель ценников. Используй следующую схему для извлечения данных:",
-            }
-        )
-        content.append(
+            },
             {
                 "type": "image_url",
                 "image_url": {"url": f"data:image/jpeg;base64,{SCHEMA_IMAGE}"},
-            }
-        )
-        content.append(
+            },
             {
                 "type": "text",
                 "text": "Распознай данные на следующем изображении ценника, строго следуя структуре полей, описанной выше. Выполни следующие требования: "
                 + PRICE_TAG_PROMPT,
-            }
-        )
+            }]
+
         if ocr_predict is not None:
             content.append(
                 {
@@ -250,6 +245,7 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None, *, stric
                     ),
                 }
             )
+
         content.append(
             {
                 "type": "image_url",
@@ -289,34 +285,6 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None, *, stric
                 "finish_reason": finish_reason, "response": raw,
             })
 
-        try:
-            result = _parse_vlm_response(raw)
-            fields_count = sum(1 for v in result.values() if v is not None)
-            fields_ratio = round(fields_count / len(RECOGNIZED_FIELDS), 3)
-            logger.info("vlm.response", extra={
-                "image": image_path.name, "latency": latency, "status": "ok",
-                "finish_reason": finish_reason,
-                "truncated": finish_reason == "length",
-                "fields_count": fields_count, "fields_ratio": fields_ratio,
-            })
-            return result
-        except (json.JSONDecodeError, ValueError, TypeError) as exc:
-            logger.warning(
-                "vlm.parse_error",
-                extra={
-                    "image": image_path.name,
-                    "latency": latency,
-                    "response": raw,
-                    "finish_reason": finish_reason,
-                    "error": str(exc),
-                    "error_type": type(exc).__name__,
-                    "error_position": getattr(exc, "pos", None),
-                },
-            )
-            if strict:
-                raise ValueError("Не удалось разобрать ответ модели распознавания. Повторите обработку.") from exc
-            return EMPTY_RESULT.copy()
-
     except APIError as exc:
         latency = round(time.monotonic() - start, 3)
         logger.exception("vlm.exception", extra={
@@ -326,6 +294,36 @@ def _recognize_crop(client: OpenAI, image_path: Path, ocr_predict=None, *, stric
         if strict:
             raise RuntimeError("Сервис распознавания недоступен или вернул ошибку. Повторите обработку позже.") from exc
         return EMPTY_RESULT.copy()
+
+    try:
+        result = _parse_vlm_response(raw)
+        fields_count = sum(1 for v in result.values() if v is not None)
+        fields_ratio = round(fields_count / len(RECOGNIZED_FIELDS), 3)
+        logger.info("vlm.response", extra={
+            "image": image_path.name, "latency": latency, "status": "ok",
+            "finish_reason": finish_reason,
+            "truncated": finish_reason == "length",
+            "fields_count": fields_count, "fields_ratio": fields_ratio,
+        })
+        return result
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        logger.warning(
+            "vlm.parse_error",
+            extra={
+                "image": image_path.name,
+                "latency": latency,
+                "response": raw,
+                "finish_reason": finish_reason,
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "error_position": getattr(exc, "pos", None),
+            },
+        )
+        if strict:
+            raise ValueError("Не удалось разобрать ответ модели распознавания. Повторите обработку.") from exc
+        return EMPTY_RESULT.copy()
+
+
 
 
 def recognize_tracks(tracks_path: Path, crops_per_track: int = 5,
