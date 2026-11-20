@@ -120,7 +120,7 @@ async function pollStatus() {
     const taskId = currentTaskId;
     if (!taskId) return;
     const controller = new AbortController();
-    requestController = controller;
+    // requestController = controller;
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
         const response = await fetch(`/api/status/${encodeURIComponent(taskId)}`, { signal: controller.signal });

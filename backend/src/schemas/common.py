@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Any
 
 
 class HealthResponse(BaseModel):
@@ -13,4 +14,4 @@ class TaskQueuedResponse(BaseModel):
 class TaskStatusResponse(BaseModel):
     state: str
     progress: int | None = None
-    result: dict | None = None
+    result: Any = None
