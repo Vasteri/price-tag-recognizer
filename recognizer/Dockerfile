@@ -1,4 +1,4 @@
-FROM ultralytics/ultralytics:8.4.201
+FROM ultralytics/ultralytics:8.4.51
 
 WORKDIR /app
 ENV PYTHONPATH=/app
