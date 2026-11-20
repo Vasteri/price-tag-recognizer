@@ -7,3 +7,4 @@ uuid
 uvicorn
 aiofiles
 python-multipart
+packaging
